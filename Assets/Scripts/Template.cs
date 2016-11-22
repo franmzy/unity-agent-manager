@@ -1,7 +1,7 @@
 ﻿using UnityEngine;
 using System.Collections;
 
-namespace GnomoreGnomes
+namespace AgentManagerNamespace
 {
 	public class Template : MonoBehaviour
 	{

@@ -1,7 +1,7 @@
 ﻿using UnityEngine;
 using System.Collections;
 
-public class StateAbstract : MonoBehaviour {
+public class IdleScript : MonoBehaviour {
 
 	// Use this for initialization
 	void Start () {

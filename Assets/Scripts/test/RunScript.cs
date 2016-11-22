@@ -1,7 +1,7 @@
 ﻿using UnityEngine;
 using System.Collections;
 
-public class TransitingState : MonoBehaviour {
+public class RunScript : MonoBehaviour {
 
 	// Use this for initialization
 	void Start () {
