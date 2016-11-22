@@ -195,7 +195,7 @@ namespace AgentManagerNamespace
 
 		/** @brief Returns the active transition of the State.
 		 * 
-		 * @return The active transition of the State, null if there is no actived transtion.
+		 * @return The active transition of the State, null if there is not actived transtion.
 		 */
 		public Transition GetActivedTransition ()
 		{
@@ -230,6 +230,26 @@ namespace AgentManagerNamespace
 					((MonoBehaviour)component).enabled = true;
 				}
 
+			}
+		}
+
+
+		/** @brief Deactivate the State.
+		 * 
+		 * Avoid using it if your intention is to transitate to other estate.
+		 * Deactiving the state you are disabling every animation and component
+		 * associated to this state.
+		 */
+		public void DeactivateState ()
+		{
+			// Deactive animations
+			foreach (string animationName in _animations) {
+				Agent.Animator.SetBool (animationName, true);
+			}
+
+			// Deactive Components
+			foreach (Component component in _components) {
+				((MonoBehaviour)component).enabled = false;
 			}
 		}
 
