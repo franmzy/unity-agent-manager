@@ -24,17 +24,15 @@ namespace AgentManagerNamespace
 		// Reference to the Animator Component
 		private Animator _animator;
 		// Possible animations in the Agent.
-		private HashSet<string> _animationNames = new HashSet<string> ();
+		private Dictionary<string, int> _animationNames = new Dictionary<string, int> ();
 		// Possible components in the Agent.
-		private HashSet<Component> _components = new HashSet<Component> ();
+		private Dictionary<System.Type, int> _componentTypes = new Dictionary<System.Type, int> ();
 
-		// Transiting states of the agent
-		private List<State> _transitingStates = new List<State> ();
-		// Interrupting states of the agent
-		private List<State> _interruptingStates = new List<State> ();
+		// Layers
+		private List<Layer> _layers = new List<Layer> ();
 
-		private bool _enabled;
-		private State _currentState;
+		private bool _enabled = false;
+		private bool _firstTimeEnabled = false;
 
 		#endregion // PRIVATE_MEMBER_VARIABLES
 
@@ -42,19 +40,24 @@ namespace AgentManagerNamespace
 
 		#region GETTERS_AND_SETTERS_METHODS
 
+		/// Enables the Agent for working.
 		public bool Enabled {
 			get { return _enabled; }
 			set { 
-				if (!_enabled && value) {
-					_currentState = _transitingStates [0];
-					_currentState.ActivateState ();
+				if (!_firstTimeEnabled && value) {
+					_firstTimeEnabled = true;
+					foreach (Layer layer in _layers) {
+						layer.Enabled = true;
+					}
 				}
 				_enabled = value;
 			}
 		}
 
+
 		/// The Id name that identifies the Agent.
 		public string Name { get { return _name; } }
+
 
 		//! A reference to the character GameObjects that controls this Agent.
 		public GameObject Character { 
@@ -69,21 +72,35 @@ namespace AgentManagerNamespace
 			} 
 		}
 
+
 		//! A reference to the Animator component that controls the animations of this Agent.
 		public Animator Animator { 
 			get { return _animator; } 
 			set { _animator = value; } 
 		}
 
+
 		//! Possible animations in this Agent.
-		public HashSet<string> AnimationNames {
+		public Dictionary<string, int>  AnimationNames {
 			get { return _animationNames; }
 		}
 
+
 		//! Possible components in this Agent.
-		public HashSet<Component> Components {
-			get { return _components; }
+		public Dictionary<System.Type, int>  ComponentTypes {
+			get { return _componentTypes; }
 		}
+
+
+		/** @brief Get the Initial state of an agent layer.
+		 * 
+		 * @param layer Agent layer wanted.
+		 */ 
+		public State GetInitialState (int layer = 0)
+		{
+			return _layers [0].InitialState;
+		}
+
 
 		#endregion // GETTERS_AND_SETTERS_METHODS
 
@@ -105,6 +122,18 @@ namespace AgentManagerNamespace
 		public Agent (string agentName)
 		{
 			_name = agentName;
+		}
+
+
+		/** \brief Creates an Agent object.
+		 * 
+		 * @param agentName Id name for the agent.
+		 * @param character GameObject to be associated to the Agent
+		 */
+		public Agent (string agentName, GameObject character)
+		{
+			_name = agentName;
+			_character = character;
 		}
 
 
@@ -139,47 +168,33 @@ namespace AgentManagerNamespace
 		/** \brief Add an State to this Agent.
 		 * 
 		 * @param stateName Id name for the state.
-		 * @param isInterrupting True if it will be able to break the normal flow of the state machine.
+		 * @param layer Adds the state in the state layer passed.
 		 * @return A refence to de state created, null if it has not been created.
 		 */
-		public State AddState (string stateName, bool isInterrupting = false)
+		public State AddState (string stateName, int layerId = 0)
 		{
-			// Check if this state already exists
-			if (FindState (stateName) != null) {
-				Debug.LogWarningFormat ("The state {0} already exists.", stateName);
-				return null;
-			}
-			
 			State newState = new State (stateName);
-			// Index the state with this Agent
-			newState.Agent = this;
-			if (!isInterrupting)
-				_transitingStates.Add (newState);
-			else
-				_interruptingStates.Add (newState);
-			return newState;
+			if (AddState (newState, layerId))
+				return newState;
+			return null;
 		}
 
 
 		/** @brief Add an State to the Agent.
 		 * 
 		 * @param state State object to be added.
-		 * @param isInterrupting True if it will be able to break the normal flow of the state machine.
 		 * @return Returns true if the addition has been successfully done.
 		 */
-		public bool AddState (State state, bool isInterrupting = false)
+		public bool AddState (State state, int layerId = 0)
 		{
-			// Check if this transition alreary exists.
-			if (_interruptingStates.Contains (state) || _transitingStates.Contains (state)) {
-				Debug.LogWarningFormat ("The state {0} does already exist.", state.Name);
-				return false;
-			}
-			state.Agent = this;
-			if (!isInterrupting)
-				_transitingStates.Add (state);
-			else
-				_interruptingStates.Add (state);
-			return true;
+			Layer layerAux = FindLayer (layerId);
+			if (layerAux == null)
+				layerAux = AddLayer (layerId);
+			
+			if (layerAux.AddState (state))
+				return true;
+			Debug.LogWarningFormat ("The state {0} has not been added to layer {1}.", state.Name, layerId);
+			return false;
 		}
 
 
@@ -188,46 +203,67 @@ namespace AgentManagerNamespace
 		 * @param originStateName The name of the State to transitate from.
 		 * @param targetStateName The name of the State to transitate to.
 		 * @param trigget Trigger that determinates when to transitate.
+		 * @param layerId The layer in which the states has to be found.
 		 * @param priotity The prority to be actived.
 		 * @return A reference to the transition created.
 		 */
-		public Transition AddTransition (string originStateName, string targetStateName, TransitionTrigger trigger, int priority = 0)
+		public Transition AddTransition (string originStateName, string targetStateName, TransitionTrigger trigger, int layerId = 0, int priority = 0)
 		{
-			// Check if the states exist.
-			State originState = FindState (originStateName);
-			if (originState == null) {
-				Debug.LogWarningFormat ("The state {0} does not exist.", originStateName);
+			Layer layerAux = FindLayer (layerId);
+			if (layerAux == null) {
+				Debug.LogWarningFormat ("The transition {0}-{1} has not been added, no exists state {2} in layer {3}.",
+					originStateName, targetStateName, originStateName, layerId);
 				return null;
 			}
-
-			State targetState = FindState (targetStateName);
-			if (targetState == null) {
-				Debug.LogWarningFormat ("The state {0} does not exist.", targetStateName);
-				return null;
-			}
-
-			return originState.AddTransition (targetState, trigger, priority);
+			Transition newTransition = _layers [layerId].AddTransition (originStateName, targetStateName, trigger, priority);
+			if (newTransition == null) 
+				Debug.LogWarningFormat ("The transition {0}-{1} has not been added to the state {2} in layer {3}.",
+					originStateName, targetStateName, originStateName, layerId);
+			return newTransition;
 		}
 
 
-		/** @brief Find a State by name.
+		/** @brief Find a State in a Layer by name.
 		 * 
 		 * @param stateName The name of the state to be found.
+		 * @param layerId Layer to search in.
 		 * @return The State searched or null if it does not exist.
 		 */
-		public State FindState (string stateName)
+		public State FindState (string stateName, int layerId)
 		{
-			// Search the state in the possible types
-			State foundState = _transitingStates.Find (state => state.Name.Equals (stateName));
-			if (foundState != null)
-				return foundState;
+			Layer layerAux = FindLayer (layerId);
+			if (layerAux == null)
+				return null;
+			return layerAux.FindState (stateName);
+		}
 
-			foundState = _interruptingStates.Find (state => state.Name.Equals (stateName));	
-			if (foundState != null)
-				return foundState;
 
-			// Null if it is not found
-			return null;
+		/** @brief Find a State in an Agent by name.
+		 * 
+		 * @param stateName The name of the state to be found.
+		 * @return The States found or null if it does not exist.
+		 */
+		public List<State> FindState (string stateName)
+		{
+			List<State> result = new List<State> ();
+			foreach (Layer layerI in _layers) {
+				State stateFound = layerI.FindState (stateName);
+				if (stateFound != null) {
+					result.Add (stateFound);
+				}
+			}
+			return result;
+		}
+
+
+		/** @brief Find a Layer in an Agent by Id.
+		 * 
+		 * @param layerId The id of the Layer to be found.
+		 * @return The Layer found or null if it does not exist.
+		 */
+		public Layer FindLayer (int layerId)
+		{
+			return _layers.Find (layer => layer.Id == layerId);
 		}
 
 
@@ -235,14 +271,34 @@ namespace AgentManagerNamespace
 		public void Update ()
 		{
 			if (Enabled) {
-				Transition activedTransition = _currentState.GetActivedTransition ();
-				if (activedTransition != null) {
-					_currentState = activedTransition.TargetState;
-					_currentState.ActivateState ();
+				foreach (Layer layerI in _layers) {
+					layerI.Update ();
+				}
+
+				// Update state of animations and components
+				foreach (var item in _animationNames) {
+					_animator.SetBool (item.Key, item.Value > 0);
+				}
+
+				foreach (var item in _componentTypes) {
+					Component component = _character.GetComponent (item.Key);
+					if ((component as MonoBehaviour).enabled != (item.Value > 0)) {
+						(component as MonoBehaviour).enabled = (item.Value > 0);
+					}
 				}
 			}
 		}
 
+
+		public bool SetInitialState (string stateName, int layerId = 0) {
+			State stateAux = FindState (stateName, layerId);
+			if (stateAux == null) {
+				Debug.LogWarningFormat ("The state {0} could not be found in layer {1}.", stateName, layerId);
+				return false;
+			}
+			FindLayer (layerId).InitialState = stateAux;
+			return true;
+		}
 
 		#endregion // PUBLIC_METHODS
 
@@ -250,6 +306,23 @@ namespace AgentManagerNamespace
 
 		#region PRIVATE_METHODS
 
+		/** @brief Add layer to this Agent
+		 * 
+		 * @param layerId The id of the new Layer
+		 */
+		public Layer AddLayer (int layerId)
+		{
+			// Check if this layer alreary exists.
+			if (_layers.Find (layer => layer.Id == layerId) != null) {
+				Debug.LogWarningFormat ("The layer {0} does already exist in the agent {1}.", layerId, Name);
+				return null;
+			}
+			Layer newLayer = new Layer (layerId);
+			newLayer.Agent = this;
+			_layers.Add (newLayer);
+			_layers.Sort ();
+			return newLayer;
+		}
 
 
 		#endregion // PRIVATE_METHODS

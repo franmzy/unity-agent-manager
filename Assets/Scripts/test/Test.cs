@@ -16,6 +16,8 @@ public class Test : MonoBehaviour {
 		idle.AddComponent (typeof(IdleScript));
 		idle.AddAnimation ("Idle");
 
+		orc.SetInitialState ("idle");
+
 		// Adding Run State
 		State run = orc.AddState ("run");
 		run.AddComponent (typeof(RunScript));

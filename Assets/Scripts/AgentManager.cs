@@ -24,17 +24,20 @@ namespace AgentManagerNamespace
 		// Current list of agents
 		private List<Agent> _agents;
 
-		private bool _managerEnabled;
-		private bool _firstTimeEnabled;
+		// The agent manager is enabled
+		private bool _managerEnabled = false;
+		// First time enabled
+		private bool _firstTimeEnabled = false;
+
 		#endregion // PRIVATE_MEMBER_VARIABLES
 
 
 
 		#region GETTERS_AND_SETTERS_METHODS
 
-		public bool ManagerEnabled { 
+		public bool ManagerEnabled {
 			get { return _managerEnabled; } 
-			set{ 
+			set { 
 				if (!_firstTimeEnabled && value) {
 					_firstTimeEnabled = true;
 					foreach (Agent agent in _agents) {
@@ -42,7 +45,7 @@ namespace AgentManagerNamespace
 					}
 				}
 				_managerEnabled = value;
-			}
+			} 
 		}
 
 		#endregion // GETTERS_AND_SETTERS_METHODS
@@ -109,6 +112,11 @@ namespace AgentManagerNamespace
 		 */
 		public Agent CreateAgent (string agentName)
 		{
+			// Check if agent already exists
+			if (_agents.Find (agent => agent.Name.Equals (agentName)) != null) {
+				Debug.LogWarningFormat ("The agent {0} already exists", agentName);
+				return null;
+			}
 			Agent newAgent = new Agent (agentName);
 			_agents.Add (newAgent);
 			return newAgent;
@@ -123,12 +131,9 @@ namespace AgentManagerNamespace
 		 */
 		public Agent CreateAgent (string agentName, GameObject character)
 		{
-			// Check if agent already exists
-			if (_agents.Find (agent => agent.Name.Equals (agentName)) != null) {
-				Debug.LogWarningFormat ("The agent {0} already exists", agentName);
-				return null;
-			}
 			Agent newAgent = CreateAgent (agentName);
+			if (newAgent == null)
+				return null;
 			newAgent.Character = character;
 			return newAgent;
 		}
