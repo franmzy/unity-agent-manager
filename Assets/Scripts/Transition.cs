@@ -1,4 +1,4 @@
-﻿using UnityEngine;
+using UnityEngine;
 using System.Collections;
 using System;
 
@@ -36,8 +36,6 @@ namespace AgentManagerNamespace
 
 		/// A reference to the target state.
 		public State TargetState { get { return _targetState; } }
-		/// State that contains this transition
-		public State State { get; set; }
 
 		#endregion // GETTERS_AND_SETTERS_METHODS
 

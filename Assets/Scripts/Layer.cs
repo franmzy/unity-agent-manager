@@ -1,10 +1,11 @@
-﻿using UnityEngine;
+using UnityEngine;
 using System.Collections;
 using System.Collections.Generic;
+using System;
 
 namespace AgentManagerNamespace
 {
-	public class Layer
+	public class Layer: IComparable<Layer>
 	{
 		#region PUBLIC_MEMBER_VARIABLES
 
@@ -21,10 +22,9 @@ namespace AgentManagerNamespace
 		private List<State> _states = new List<State> ();
 		private State _currentState;
 
-		private bool _hidden;
+		private int _masked;
 
 		private bool _enabled = false;
-		private bool _firstTimeEnabled = false;
 
 		#endregion // PRIVATE_MEMBER_VARIABLES
 
@@ -42,27 +42,14 @@ namespace AgentManagerNamespace
 		public bool Enabled {
 			get { return _enabled; }
 			set { 
-				if (!_firstTimeEnabled && value) {
-					_firstTimeEnabled = true;
+				if (!_enabled && value) {
 					_currentState = InitialState;
 					_currentState.ActivateState ();
 				}
-				_enabled = value;
-			}
-		}
-
-		/// Enables Hidden Mode.
-		/** In hidden mode the agent is still transitating between states
-		 * but its effects are not carried out, animations and components are not altered
-		 */
-		public bool Hidden { 
-			get { return _hidden; }
-			set {
-				if (!_hidden && value)
+				if (_enabled && !value) {
 					_currentState.DeactivateState ();
-				if (_hidden && !value)
-					_currentState.ActivateState ();
-				_hidden = value;
+				}
+				_enabled = value;
 			}
 		}
 
@@ -90,14 +77,7 @@ namespace AgentManagerNamespace
 		public Layer (int layerId)
 		{
 			_id = layerId;
-			Hidden = false;
 		}
-
-		/** \brief Compares Layes.
-		 * 
-		 * It compares layers in ascending order.
-		 * @param compareLayer Layer to compare with.
-		 */
 
 
 		/** \brief Equality between Layer and Object.
@@ -149,14 +129,29 @@ namespace AgentManagerNamespace
 		 */
 		public bool AddState (State state)
 		{
-			// Check if this transition alreary exists.
+			// Check if this state alreary exists.
 			if (_states.Contains (state)) {
 				Debug.LogWarningFormat ("The state {0} does already exist in the layer {1}.", state.Name, _id);
 				return false;
 			}
+			// By default the first state is the initial state.
+			if (_states.Count == 0) {
+				InitialState = state;
+			}
 			state.Layer = this;
 			_states.Add (state);
 			return true;
+		}
+
+
+		/** @brief Remove an State from the Layer.
+		 * 
+		 * @param state State object to be removed.
+		 * @return Returns true if the state has been successfully removed.
+		 */
+		public bool RemoveState (State state)
+		{
+			return _states.Remove (state);
 		}
 
 
@@ -209,6 +204,32 @@ namespace AgentManagerNamespace
 		}
 
 
+		public void ActiveInterruptingState (State interruptingState)
+		{
+			if (Enabled) {
+				State lastState = _currentState;
+				_currentState = interruptingState;
+
+				lastState.DeactivateState ();
+				_currentState.ActivateState ();
+			}
+		}
+
+		public void Mask(){
+			_masked++;
+			if (_masked == 1) {
+				Enabled = false;
+			}
+		}
+
+
+		public void Unmask(){
+			_masked--;
+			if (_masked == 0) {
+				Enabled = true;
+			}
+		}
+
 		//! Updates the State of the Layer
 		public void Update ()
 		{
@@ -217,11 +238,10 @@ namespace AgentManagerNamespace
 				if (activedTransition != null) {
 					State lastState = _currentState;
 					_currentState = activedTransition.TargetState;
-					// If the layer is not hidden modify animations and components
-					if (!Hidden) {
-						lastState.DeactivateState ();
-						_currentState.ActivateState ();
-					}
+					// Update states
+					lastState.DeactivateState ();
+					_currentState.ActivateState ();
+
 				}
 			}
 		}

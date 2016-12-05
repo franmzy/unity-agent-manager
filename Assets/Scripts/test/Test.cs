@@ -12,24 +12,17 @@ public class Test : MonoBehaviour {
 		Agent orc = AgentManager.instance.CreateAgent ("orc", _character);
 
 		// Adding Idle State
-		State idle = orc.AddState ("idle");
-		idle.AddComponent (typeof(IdleScript));
-		idle.AddAnimation ("Idle");
-
+		orc.AddState("idle", typeof(IdleScript), "Idle");
 		orc.SetInitialState ("idle");
 
 		// Adding Run State
-		State run = orc.AddState ("run");
-		run.AddComponent (typeof(RunScript));
-		run.AddAnimation ("Run");
+		orc.AddState("run", typeof(RunScript), "Run");
 
 		// Adding Idle => Run transition
-		TransitionTrigger trigger = new TransitionTrigger ( () => Input.GetKeyDown (KeyCode.DownArrow));
-		idle.AddTransition( new Transition(run, trigger));
+		orc.AddTransition("idle", "run", new TransitionTrigger ( () => Input.GetKeyDown (KeyCode.DownArrow)));
 
 		// Adding Run => Idle transition (Different way to do it)
-		trigger = new TransitionTrigger (() => Input.GetKeyDown (KeyCode.UpArrow));
-		orc.AddTransition ("run", "idle", trigger);
+		orc.AddTransition("run", "idle", new TransitionTrigger ( () => Input.GetKeyDown (KeyCode.DownArrow)));
 
 		// Activating Agent Manager
 		AgentManager.instance.ManagerEnabled = true;

@@ -1,4 +1,4 @@
-﻿using UnityEngine;
+using UnityEngine;
 using System.Collections;
 using System.Collections.Generic;
 
@@ -15,6 +15,13 @@ namespace AgentManagerNamespace
 		///Static instance of AgentManager which allows it to be accessed by any other script.
 		public static AgentManager instance = null;
 
+
+		//! Different types of messages
+		public enum MsgType
+		{
+			INTERRUPTING_MSG
+		}
+			
 		#endregion // PUBLIC_MEMBER_VARIABLES
 
 
@@ -24,10 +31,8 @@ namespace AgentManagerNamespace
 		// Current list of agents
 		private List<Agent> _agents;
 
-		// The agent manager is enabled
-		private bool _managerEnabled = false;
-		// First time enabled
-		private bool _firstTimeEnabled = false;
+		// Manager enabled
+		private bool _managerEnabled;
 
 		#endregion // PRIVATE_MEMBER_VARIABLES
 
@@ -35,17 +40,22 @@ namespace AgentManagerNamespace
 
 		#region GETTERS_AND_SETTERS_METHODS
 
-		public bool ManagerEnabled {
-			get { return _managerEnabled; } 
+		//! Controls whether the agent manager is enabled.
+		public bool ManagerEnabled { 
+			get { return _managerEnabled; }
 			set { 
-				if (!_firstTimeEnabled && value) {
-					_firstTimeEnabled = true;
-					foreach (Agent agent in _agents) {
+				if (!_managerEnabled && value) {
+					foreach (var agent in _agents) {
 						agent.Enabled = true;
 					}
 				}
+				if (_managerEnabled && !value) {
+					foreach (var agent in _agents) {
+						agent.Enabled = false;
+					}
+				}
 				_managerEnabled = value;
-			} 
+			}
 		}
 
 		#endregion // GETTERS_AND_SETTERS_METHODS
@@ -72,11 +82,10 @@ namespace AgentManagerNamespace
 			_agents = new List<Agent> ();
 		}
 
-
 		void Update ()
 		{
 			if (ManagerEnabled) {
-				// Call each agent
+				// Call each agent update
 				foreach (Agent agent in _agents) {
 					agent.Update ();
 				}
@@ -105,23 +114,6 @@ namespace AgentManagerNamespace
 			return null;
 		}
 
-		/** @brief Creates a new Agent in the system.
-		 * 
-		 * @param agentName The ID name of the Agent.
-		 * @return A reference to the agent created in the system.
-		 */
-		public Agent CreateAgent (string agentName)
-		{
-			// Check if agent already exists
-			if (_agents.Find (agent => agent.Name.Equals (agentName)) != null) {
-				Debug.LogWarningFormat ("The agent {0} already exists", agentName);
-				return null;
-			}
-			Agent newAgent = new Agent (agentName);
-			_agents.Add (newAgent);
-			return newAgent;
-		}
-
 
 		/** @brief Creates a new Agent in the system.
 		 * 
@@ -131,28 +123,18 @@ namespace AgentManagerNamespace
 		 */
 		public Agent CreateAgent (string agentName, GameObject character)
 		{
-			Agent newAgent = CreateAgent (agentName);
-			if (newAgent == null)
-				return null;
-			newAgent.Character = character;
-			return newAgent;
-		}
-
-
-		/** @brief Add a new Agent to the system.
-		 * 
-		 * @param Agent to be added.
-		 * @return Returns true if the agent has been added successfully.
-		 */
-		public bool AddAgent (Agent agent)
-		{
 			// Check if agent already exists
-			if (_agents.Contains (agent)) {
-				Debug.LogWarningFormat ("The agent {0} already exists", agent.Name);
-				return false;
+			if (_agents.Find (agent => agent.Name.Equals (agentName)) != null) {
+				Debug.LogWarningFormat ("The agent {0} already exists", agentName);
+				return null;
 			}
-			_agents.Add (agent);
-			return true;
+			if (character == null) {
+				Debug.LogWarningFormat ("The character associated with the agent {0} can't be null", agentName);
+				return null;
+			}
+			Agent newAgent = new Agent (agentName, character);
+			_agents.Add (newAgent);
+			return newAgent;
 		}
 
 
@@ -165,6 +147,23 @@ namespace AgentManagerNamespace
 		{
 			// The Equals method only checks name for equality.
 			return _agents.Remove (new Agent (agentName));
+		}
+
+
+		/** @brief Sends diffents messages types to state components
+		 * 
+		 * @param agentName The agent to send the message
+		 * @param msgType The type of message
+		 * @param content The content of the message
+		 * @return True if the message has been successfully sent
+		 */
+		public bool SendMessage(string agentName, MsgType msgType, string content) {
+			Agent agent = GetAgent (agentName);
+			if (agent == null) {
+				Debug.LogWarningFormat ("The agent {0} does not exists", agentName);
+				return false;
+			}
+			return agent.SendMessage (msgType, content);
 		}
 
 		#endregion // PUBLIC_METHODS

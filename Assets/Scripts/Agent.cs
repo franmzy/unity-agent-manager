@@ -1,4 +1,4 @@
-﻿using UnityEngine;
+using UnityEngine;
 using System.Collections;
 using System.Collections.Generic;
 
@@ -8,7 +8,6 @@ namespace AgentManagerNamespace
 	public class Agent
 	{
 		#region PUBLIC_MEMBER_VARIABLES
-
 
 
 		#endregion // PUBLIC_MEMBER_VARIABLES
@@ -25,14 +24,17 @@ namespace AgentManagerNamespace
 		private Animator _animator;
 		// Possible animations in the Agent.
 		private Dictionary<string, int> _animationNames = new Dictionary<string, int> ();
+		// Last value of possible animations in the Agent.
+		private Dictionary<string, int> _lastAnimationNames = new Dictionary<string, int> ();
 		// Possible components in the Agent.
 		private Dictionary<System.Type, int> _componentTypes = new Dictionary<System.Type, int> ();
+		// Last value of possible component types in the Agent.
+		private Dictionary<System.Type, int> _lastComponentTypes = new Dictionary<System.Type, int> ();
 
 		// Layers
 		private List<Layer> _layers = new List<Layer> ();
 
-		private bool _enabled = false;
-		private bool _firstTimeEnabled = false;
+		private bool _enabled;
 
 		#endregion // PRIVATE_MEMBER_VARIABLES
 
@@ -44,37 +46,40 @@ namespace AgentManagerNamespace
 		public bool Enabled {
 			get { return _enabled; }
 			set { 
-				if (!_firstTimeEnabled && value) {
-					_firstTimeEnabled = true;
-					foreach (Layer layer in _layers) {
+				if (!_enabled && value) {
+					foreach (var layer in _layers) {
 						layer.Enabled = true;
+					}
+				}
+				if (_enabled && !value) {
+					foreach (var layer in _layers) {
+						layer.Enabled = false;
 					}
 				}
 				_enabled = value;
 			}
 		}
 
-
 		/// The Id name that identifies the Agent.
 		public string Name { get { return _name; } }
-
 
 		//! A reference to the character GameObjects that controls this Agent.
 		public GameObject Character { 
 			get { return _character; } 
-			set { 
+			private set { 
 				_character = value; 
 				// If the character has already an animator, we use it as the agent animator.
 				Animator animatorAux = _character.GetComponent<Animator> ();
-				if (animatorAux != null) {
-					_animator = animatorAux;
+				if (animatorAux == null) {
+					animatorAux = _character.AddComponent<Animator> ();
 				}
+				_animator = animatorAux;
 			} 
 		}
 
 
 		//! A reference to the Animator component that controls the animations of this Agent.
-		public Animator Animator { 
+		private Animator Animator { 
 			get { return _animator; } 
 			set { _animator = value; } 
 		}
@@ -133,7 +138,7 @@ namespace AgentManagerNamespace
 		public Agent (string agentName, GameObject character)
 		{
 			_name = agentName;
-			_character = character;
+			Character = character;
 		}
 
 
@@ -168,32 +173,83 @@ namespace AgentManagerNamespace
 		/** \brief Add an State to this Agent.
 		 * 
 		 * @param stateName Id name for the state.
-		 * @param layer Adds the state in the state layer passed.
+		 * @param layerId Adds the state in the state layer passed.
+		 * @param bitmask Hide lower layers when it bit is 0
 		 * @return A refence to de state created, null if it has not been created.
 		 */
-		public State AddState (string stateName, int layerId = 0)
+		public bool AddState (string stateName, int layerId = 0, int bitmask = int.MaxValue)
 		{
-			State newState = new State (stateName);
+			State newState = new State (stateName, bitmask);
 			if (AddState (newState, layerId))
-				return newState;
-			return null;
+				return true;
+			return false;
 		}
 
-
-		/** @brief Add an State to the Agent.
+		/** \brief Add an State to this Agent.
 		 * 
-		 * @param state State object to be added.
-		 * @return Returns true if the addition has been successfully done.
+		 * @param stateName Id name for the state.
+		 * @param layerId Adds the state in the state layer passed.
+		 * @param componentType The type component associated with this state
+		 * @param animationName The animation name associated with this state
+		 * @param bitmask Hide lower layers when it bit is 0
+		 * @return A refence to de state created, null if it has not been created.
 		 */
-		public bool AddState (State state, int layerId = 0)
+		public bool AddState (string stateName, System.Type componentType, string animationName, int layerId = 0, int bitmask = int.MaxValue)
 		{
-			Layer layerAux = FindLayer (layerId);
-			if (layerAux == null)
-				layerAux = AddLayer (layerId);
-			
-			if (layerAux.AddState (state))
+			State newState = new State (stateName, bitmask);
+			if (AddState (newState, layerId)) {
+				if (newState.AddComponent (componentType) == null) {
+					RemoveState (newState);
+					return false;
+				}
+				if (!newState.AddAnimation (animationName)) {
+					RemoveState (newState);
+					return false;
+				}
 				return true;
-			Debug.LogWarningFormat ("The state {0} has not been added to layer {1}.", state.Name, layerId);
+			}
+			return false;
+		}
+
+		/** \brief Add an State to this Agent.
+		 * 
+		 * @param stateName Id name for the state.
+		 * @param layerId Adds the state in the state layer passed.
+		 * @param componentType The type component associated with this state
+		 * @param bitmask Hide lower layers when it bit is 0
+		 * @return A refence to de state created, null if it has not been created.
+		 */
+		public bool AddState (string stateName, System.Type componentType, int layerId = 0, int bitmask = int.MaxValue)
+		{
+			State newState = new State (stateName, bitmask);
+			if (AddState (newState, layerId)) {
+				if (newState.AddComponent (componentType) == null) {
+					RemoveState (newState);
+					return false;
+				}
+				return true;
+			}
+			return false;
+		}
+
+		/** \brief Add an State to this Agent.
+		 * 
+		 * @param stateName Id name for the state.
+		 * @param layerId Adds the state in the state layer passed.
+		 * @param animationName The animation name associated with this state
+		 * @param bitmask Hide lower layers when it bit is 0
+		 * @return A refence to de state created, null if it has not been created.
+		 */
+		public bool AddState (string stateName, string animationName, int layerId = 0, int bitmask = int.MaxValue)
+		{
+			State newState = new State (stateName, bitmask);
+			if (AddState (newState, layerId)) {
+				if (!newState.AddAnimation (animationName)) {
+					RemoveState (newState);
+					return false;
+				}
+				return true;
+			}
 			return false;
 		}
 
@@ -207,52 +263,45 @@ namespace AgentManagerNamespace
 		 * @param priotity The prority to be actived.
 		 * @return A reference to the transition created.
 		 */
-		public Transition AddTransition (string originStateName, string targetStateName, TransitionTrigger trigger, int layerId = 0, int priority = 0)
+		public bool AddTransition (string originStateName, string targetStateName, TransitionTrigger trigger, int priority = 0, int layerId = 0)
 		{
 			Layer layerAux = FindLayer (layerId);
 			if (layerAux == null) {
 				Debug.LogWarningFormat ("The transition {0}-{1} has not been added, no exists state {2} in layer {3}.",
 					originStateName, targetStateName, originStateName, layerId);
-				return null;
+				return false;
 			}
-			Transition newTransition = _layers [layerId].AddTransition (originStateName, targetStateName, trigger, priority);
-			if (newTransition == null) 
+			Transition newTransition = layerAux.AddTransition (originStateName, targetStateName, trigger, priority);
+			if (newTransition == null)
 				Debug.LogWarningFormat ("The transition {0}-{1} has not been added to the state {2} in layer {3}.",
 					originStateName, targetStateName, originStateName, layerId);
-			return newTransition;
+			return true;
 		}
 
 
-		/** @brief Find a State in a Layer by name.
-		 * 
-		 * @param stateName The name of the state to be found.
-		 * @param layerId Layer to search in.
-		 * @return The State searched or null if it does not exist.
-		 */
-		public State FindState (string stateName, int layerId)
+		//! Updates the state of the agent
+		public void Update ()
 		{
-			Layer layerAux = FindLayer (layerId);
-			if (layerAux == null)
-				return null;
-			return layerAux.FindState (stateName);
-		}
-
-
-		/** @brief Find a State in an Agent by name.
-		 * 
-		 * @param stateName The name of the state to be found.
-		 * @return The States found or null if it does not exist.
-		 */
-		public List<State> FindState (string stateName)
-		{
-			List<State> result = new List<State> ();
-			foreach (Layer layerI in _layers) {
-				State stateFound = layerI.FindState (stateName);
-				if (stateFound != null) {
-					result.Add (stateFound);
+			if (Enabled) {
+				// It is needed to update changes made by the messages before checking transitions
+				UpdateContext ();
+				foreach (Layer layerI in _layers) {
+					layerI.Update ();
 				}
+				UpdateContext ();
 			}
-			return result;
+		}
+
+
+		public bool SetInitialState (string stateName, int layerId = 0)
+		{
+			State stateAux = FindState (stateName, layerId);
+			if (stateAux == null) {
+				Debug.LogWarningFormat ("The state {0} could not be found in layer {1}.", stateName, layerId);
+				return false;
+			}
+			FindLayer (layerId).InitialState = stateAux;
+			return true;
 		}
 
 
@@ -267,38 +316,26 @@ namespace AgentManagerNamespace
 		}
 
 
-		//! Updates the state of the agent
-		public void Update ()
+		/** @brief Sends diffents messages types to state components
+		 * 
+		 * @param agentName The agent to send the message
+		 * @param msgType The type of message
+		 * @param content The content of the message
+		 * @return True if the message has been successfully sent
+		 */
+		public bool SendMessage (AgentManager.MsgType typeMsg, string content)
 		{
-			if (Enabled) {
-				foreach (Layer layerI in _layers) {
-					layerI.Update ();
+			if (typeMsg == AgentManager.MsgType.INTERRUPTING_MSG) {
+				List<State> states = FindState (content);
+				if (states.Count == 0) {
+					Debug.LogWarningFormat ("The state {0} was not found to be interrupting.", content);
+					return false;
 				}
-
-				// Update state of animations and components
-				foreach (var item in _animationNames) {
-					_animator.SetBool (item.Key, item.Value > 0);
-				}
-
-				foreach (var item in _componentTypes) {
-					Component component = _character.GetComponent (item.Key);
-					if ((component as MonoBehaviour).enabled != (item.Value > 0)) {
-						(component as MonoBehaviour).enabled = (item.Value > 0);
-					}
-				}
+				states [0].Interrupt ();
 			}
-		}
-
-
-		public bool SetInitialState (string stateName, int layerId = 0) {
-			State stateAux = FindState (stateName, layerId);
-			if (stateAux == null) {
-				Debug.LogWarningFormat ("The state {0} could not be found in layer {1}.", stateName, layerId);
-				return false;
-			}
-			FindLayer (layerId).InitialState = stateAux;
 			return true;
 		}
+
 
 		#endregion // PUBLIC_METHODS
 
@@ -306,11 +343,78 @@ namespace AgentManagerNamespace
 
 		#region PRIVATE_METHODS
 
+		/** @brief Add an State to the Agent.
+		 * 
+		 * @param state State object to be added.
+		 * @param layerId Adds the state in the state layer passed.
+		 * @return Returns true if the addition has been successfully done.
+		 */
+		private bool AddState (State state, int layerId = 0)
+		{
+			Layer layerAux = FindLayer (layerId);
+			if (layerAux == null)
+				layerAux = AddLayer (layerId);
+
+			if (layerAux.AddState (state))
+				return true;
+			Debug.LogWarningFormat ("The state {0} has not been added to layer {1}.", state.Name, layerId);
+			return false;
+		}
+
+
+		/** @brief Remove an State of the Agent.
+		 * 
+		 * @param state State to remove
+		 * @param layerId Layer to remove from.
+		 * @return Returns true if the addition has been successfully done.
+		 */
+		private bool RemoveState (State state, int layerId = 0)
+		{
+			Layer layerAux = FindLayer (layerId);
+			if (layerAux == null)
+				return false;
+
+			return layerAux.RemoveState (state);
+		}
+
+
+		/** @brief Find a State in a Layer by name.
+		 * 
+		 * @param stateName The name of the state to be found.
+		 * @param layerId Layer to search in.
+		 * @return The State searched or null if it does not exist.
+		 */
+		private State FindState (string stateName, int layerId)
+		{
+			Layer layerAux = FindLayer (layerId);
+			if (layerAux == null)
+				return null;
+			return layerAux.FindState (stateName);
+		}
+
+
+		/** @brief Find a State in an Agent by name.
+		 * 
+		 * @param stateName The name of the state to be found.
+		 * @return The States found or null if it does not exist.
+		 */
+		private List<State> FindState (string stateName)
+		{
+			List<State> result = new List<State> ();
+			foreach (Layer layerI in _layers) {
+				State stateFound = layerI.FindState (stateName);
+				if (stateFound != null) {
+					result.Add (stateFound);
+				}
+			}
+			return result;
+		}
+
 		/** @brief Add layer to this Agent
 		 * 
 		 * @param layerId The id of the new Layer
 		 */
-		public Layer AddLayer (int layerId)
+		private Layer AddLayer (int layerId)
 		{
 			// Check if this layer alreary exists.
 			if (_layers.Find (layer => layer.Id == layerId) != null) {
@@ -324,6 +428,46 @@ namespace AgentManagerNamespace
 			return newLayer;
 		}
 
+
+		//! Update State of components and animators
+		private void UpdateContext ()
+		{
+			// Update state of animations and components
+			foreach (var item in _animationNames) {
+				// I need to save the last animation state because I there are trigger animations variables
+				if (!_lastAnimationNames.ContainsKey (item.Key))
+					_lastAnimationNames [item.Key] = 0;
+
+				if (_lastAnimationNames [item.Key] == 0 && item.Value > 0)
+					_animator.SetBool (item.Key, true);
+				if (_lastAnimationNames [item.Key] > 0 && item.Value == 0)
+					_animator.SetBool (item.Key, false);
+
+				//_animator.SetBool (item.Key, item.Value > 0);
+				_lastAnimationNames [item.Key] = item.Value;
+			}
+
+			foreach (var item in _componentTypes) {
+				Component component = _character.GetComponent (item.Key);
+
+				if (!_lastComponentTypes.ContainsKey (item.Key))
+					_lastComponentTypes [item.Key] = 0;
+
+				if (_lastComponentTypes [item.Key] == 0 && item.Value > 0) {
+					// Check if it is enabled already
+					if (!(component as MonoBehaviour).enabled) {
+						(component as MonoBehaviour).enabled = true;
+					}
+				}
+				if (_lastComponentTypes [item.Key] > 0 && item.Value == 0) {
+					if ((component as MonoBehaviour).enabled) {
+						(component as MonoBehaviour).enabled = false;
+					}
+				}
+
+				_lastComponentTypes [item.Key] = item.Value;
+			}
+		}
 
 		#endregion // PRIVATE_METHODS
 	}

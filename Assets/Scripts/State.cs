@@ -1,4 +1,4 @@
-﻿using UnityEngine;
+using UnityEngine;
 using System.Collections;
 using System.Collections.Generic;
 using UnityEditor;
@@ -26,6 +26,8 @@ namespace AgentManagerNamespace
 		private HashSet<System.Type> _componentTypes = new HashSet<System.Type> ();
 		private Dictionary<System.Type, bool> _resetComponent = new Dictionary<System.Type, bool> ();
 
+		private bool _activated = false;
+
 		#endregion // PRIVATE_MEMBER_VARIABLES
 
 
@@ -40,6 +42,8 @@ namespace AgentManagerNamespace
 
 		/// Layer that contains this state.
 		public Layer Layer { get; set; }
+
+		public int Bitmask { get; set; }
 
 		#endregion // GETTERS_AND_SETTERS_METHODS
 
@@ -58,9 +62,10 @@ namespace AgentManagerNamespace
 		 * 
 		 * @param agentName Id name for the agent.
 		 */
-		public State (string stateName)
+		public State (string stateName, int bitmask = int.MaxValue)
 		{
 			_name = stateName;
+			Bitmask = bitmask;
 		}
 
 
@@ -108,8 +113,6 @@ namespace AgentManagerNamespace
 			}
 				
 			Transition newTransition = new Transition (targetState, trigger, priority);
-			// Index the transition with this state.
-			newTransition.State = this;
 			// Adding the transtion.
 			_transitions.Add (newTransition);
 			// Sorting transtions by prority.
@@ -135,7 +138,6 @@ namespace AgentManagerNamespace
 				Debug.LogWarningFormat ("This transition {0}-{1} does already exist.", this.Name, transition.TargetState.Name);
 				return false;
 			}
-			transition.State = this;
 			_transitions.Add (transition);
 			return true;
 		}
@@ -150,13 +152,11 @@ namespace AgentManagerNamespace
 		public bool AddAnimation (string animationName)
 		{
 			if (_animationNames.Contains (animationName)) {
-				Debug.LogWarningFormat ("The Layer {0} already contain the animation {1}.", this.Layer.Id, animationName);
+				Debug.LogWarningFormat ("The State {0} already contain the animation {1}.", Name, animationName);
 				return false;
 			}
 			_animationNames.Add (animationName);
-			if (Layer.Agent.AnimationNames.ContainsKey (animationName))
-				Layer.Agent.AnimationNames [animationName]++;
-			else
+			if (!Layer.Agent.AnimationNames.ContainsKey (animationName))
 				Layer.Agent.AnimationNames [animationName] = 0;
 			return true;
 		}
@@ -182,6 +182,7 @@ namespace AgentManagerNamespace
 			// If not add it
 			if (newComponent == null) {
 				newComponent = Layer.Agent.Character.AddComponent (typeComponent);
+				// Only initializing to false when it is new added
 				(newComponent as MonoBehaviour).enabled = false;
 			}
 
@@ -196,9 +197,7 @@ namespace AgentManagerNamespace
 			_componentTypes.Add (typeComponent);
 			_resetComponent [typeComponent] = reset;
 
-			if (Layer.Agent.ComponentTypes.ContainsKey (typeComponent))
-				Layer.Agent.ComponentTypes [typeComponent]++;
-			else
+			if (!Layer.Agent.ComponentTypes.ContainsKey (typeComponent))
 				Layer.Agent.ComponentTypes [typeComponent] = 0;
 			return newComponent;
 		}
@@ -210,6 +209,7 @@ namespace AgentManagerNamespace
 		 */
 		public Transition GetActivedTransition ()
 		{
+			// Giving the active transition by priority
 			foreach (Transition transition in _transitions) {
 				if (transition.Actived ())
 					return transition;
@@ -220,20 +220,36 @@ namespace AgentManagerNamespace
 		//! Activate the State.
 		public void ActivateState ()
 		{
-			// Active animations
-			foreach (string animationName in _animationNames) {
-				Layer.Agent.AnimationNames [animationName]++;
-			}
+			if (!_activated) {
+				// Active animations
+				foreach (string animationName in _animationNames) {
+					Layer.Agent.AnimationNames [animationName]++;
+				}
 
-			// Active Components
-			foreach (System.Type componentType in _componentTypes) {
-				// If this component is found as reset 
-				// it is reseted to active de onEnable event.
-				// To do it we disable it an it will be enabled in the update period.
-				if (_resetComponent [componentType])
-					(Layer.Agent.Character.GetComponent (componentType) as MonoBehaviour).enabled = false;
-				Layer.Agent.ComponentTypes [componentType]++;
- 			}
+				// Active Components
+				foreach (System.Type componentType in _componentTypes) {
+					// If this component is found as reset 
+					// it is reseted to active de onEnable event.
+					// To do it we disable it an it will be enabled in the update period.
+					// IMP: TO REVIEW
+					/*if (_resetComponent [componentType])
+						(Layer.Agent.Character.GetComponent (componentType) as MonoBehaviour).enabled = false;
+					*/
+					Layer.Agent.ComponentTypes [componentType]++;
+				}
+
+				// Control Mask
+				int layerId = Layer.Id-1;
+				for (int i = 1 << Layer.Id-1; i > 0; i >>= 1) {
+					if ((i & ~Bitmask) > 0) {
+						Layer.Agent.FindLayer (layerId).Mask();
+					}
+					layerId--;
+				}
+
+				_activated = true;
+				Debug.LogFormat ("Agent {0} actived state {1} in layer {2}", Layer.Agent.Name, Name, Layer.Id);
+			}
 		}
 
 
@@ -245,15 +261,33 @@ namespace AgentManagerNamespace
 		 */
 		public void DeactivateState ()
 		{
-			// Deactive animations
-			foreach (string animationName in _animationNames) {
-				Layer.Agent.AnimationNames [animationName]--;
-			}
+			if (_activated) {
+				// Deactive animations
+				foreach (string animationName in _animationNames) {
+					Layer.Agent.AnimationNames [animationName]--;
+				}
 
-			// Deactive Components
-			foreach (System.Type componentType in _componentTypes) {
-				Layer.Agent.ComponentTypes [componentType]--;
+				// Deactive Components
+				foreach (System.Type componentType in _componentTypes) {
+					Layer.Agent.ComponentTypes [componentType]--;
+				}
+
+				// Control Mask
+				int layerId = Layer.Id-1;
+				for (int i = 1 << Layer.Id-1; i > 0; i >>= 1) {
+					if ((i & ~Bitmask) > 0) {
+						Layer.Agent.FindLayer (layerId).Unmask();
+					}
+					layerId--;
+				}
+
+				_activated = false;
+				Debug.LogFormat ("Agent {0} Deactivated state {1} in layer {2}", Layer.Agent.Name, Name, Layer.Id);
 			}
+		}
+
+		public void Interrupt() {
+			Layer.ActiveInterruptingState (this);
 		}
 
 		#endregion // PUBLIC_METHODS
