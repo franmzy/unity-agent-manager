@@ -45,6 +45,8 @@ namespace AgentManagerNamespace
 
 		public int Bitmask { get; set; }
 
+		public bool Actived { get { return _activated; } }
+
 		#endregion // GETTERS_AND_SETTERS_METHODS
 
 
@@ -146,7 +148,6 @@ namespace AgentManagerNamespace
 		/** @brief Add a animation name to the actived animations in this State.
 		 * 
 		 * @param animationName The name of the animation to be actived.
-		 * @param reset Force to turn down and turn on an animation.
 		 * @return Return true if the animation has been added.
 		 */
 		public bool AddAnimation (string animationName)

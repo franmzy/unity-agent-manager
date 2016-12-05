@@ -279,6 +279,70 @@ namespace AgentManagerNamespace
 		}
 
 
+
+		/** @brief Add a Component(Script) to be enabled in a State.
+		 * 
+		 * If the component is already created in the game object it returns it.
+		 * @param typeComponent Script component to be enabled.
+		 * @param stateName State to add the component.
+		 * @param layerId Layer where the state is.
+		 * @param reset Force to reenable a script if it where
+		 * @return Return true if the animation has been added.
+		 */
+		public bool AddComponent (System.Type typeComponent, string stateName, int layerId = 0,  bool reset = false)
+		{
+			State auxState = FindState (stateName, layerId);
+			if (auxState == null) {
+				Debug.LogWarningFormat ("The state {0} could not be found in layer {1}.", stateName, layerId);
+				return false;
+			}
+
+			if (auxState.AddComponent (typeComponent, reset) != null)
+				return true;
+			return false;
+		}
+
+
+		/** @brief Add a animation name to the actived animations in a State.
+		 * 
+		 * @param animationName The name of the animation to be actived.
+		 * @param stateName State to add the animation.
+		 * @param layerId Layer where the state is.
+		 * @return Return true if the animation has been added.
+		 */
+		public bool AddAnimation (string animationName, string stateName, int layerId = 0,  bool reset = false)
+		{
+			State auxState = FindState (stateName, layerId);
+			if (auxState == null) {
+				Debug.LogWarningFormat ("The state {0} could not be found in layer {1}.", stateName, layerId);
+				return false;
+			}
+
+			if (auxState.AddAnimation (animationName))
+				return true;
+			return false;
+		}
+
+
+		/** @brief Check if an state is active.
+		 * 
+		 * @param stateName State to check.
+		 * @param layerId Layer where the state is.
+		 * @return Return true if the state is actived.
+		 */
+		public bool IsActivedState (string stateName, int layerId = 0,  bool reset = false)
+		{
+			State state = FindState (stateName, layerId);
+			if (state == null) {
+				Debug.LogWarningFormat ("The state {0} could not be found in layer {1}.", stateName, layerId);
+				return false;
+			}
+
+			return state.Actived;
+		}
+
+
+
 		//! Updates the state of the agent
 		public void Update ()
 		{
