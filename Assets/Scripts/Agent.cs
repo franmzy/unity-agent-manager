@@ -1,6 +1,8 @@
 using UnityEngine;
 using System.Collections;
 using System.Collections.Generic;
+using System.Reflection;
+using System;
 
 namespace AgentManagerNamespace
 {
@@ -26,15 +28,22 @@ namespace AgentManagerNamespace
 		private Dictionary<string, int> _animationNames = new Dictionary<string, int> ();
 		// Last value of possible animations in the Agent.
 		private Dictionary<string, int> _lastAnimationNames = new Dictionary<string, int> ();
+		// Is this animation needed to be reset.
+		private Dictionary<string, bool> _resetAnimationNames = new Dictionary<string, bool> ();
 		// Possible components in the Agent.
 		private Dictionary<System.Type, int> _componentTypes = new Dictionary<System.Type, int> ();
 		// Last value of possible component types in the Agent.
 		private Dictionary<System.Type, int> _lastComponentTypes = new Dictionary<System.Type, int> ();
+		// Is this component needed to be reset.
+		private Dictionary<System.Type, bool> _resetComponentTypes = new Dictionary<System.Type, bool> ();
 
 		// Layers
 		private List<Layer> _layers = new List<Layer> ();
 
-		private bool _enabled;
+
+		// First Update of Agent
+		private bool _firstTimeUpdate = true;
+		private bool _enabled = true;
 
 		#endregion // PRIVATE_MEMBER_VARIABLES
 
@@ -47,9 +56,7 @@ namespace AgentManagerNamespace
 			get { return _enabled; }
 			set { 
 				if (!_enabled && value) {
-					foreach (var layer in _layers) {
-						layer.Enabled = true;
-					}
+					_firstTimeUpdate = true;
 				}
 				if (_enabled && !value) {
 					foreach (var layer in _layers) {
@@ -79,9 +86,8 @@ namespace AgentManagerNamespace
 
 
 		//! A reference to the Animator component that controls the animations of this Agent.
-		private Animator Animator { 
+		public Animator Animator { 
 			get { return _animator; } 
-			set { _animator = value; } 
 		}
 
 
@@ -96,6 +102,17 @@ namespace AgentManagerNamespace
 			get { return _componentTypes; }
 		}
 
+
+		//! Possible animations in this Agent.
+		public Dictionary<string, bool>  ResetAnimationNames {
+			get { return _resetAnimationNames; }
+		}
+
+
+		//! Possible components in this Agent.
+		public Dictionary<System.Type, bool>  ResetComponentTypes {
+			get { return _resetComponentTypes; }
+		}
 
 		/** @brief Get the Initial state of an agent layer.
 		 * 
@@ -194,15 +211,15 @@ namespace AgentManagerNamespace
 		 * @param bitmask Hide lower layers when it bit is 0
 		 * @return A refence to de state created, null if it has not been created.
 		 */
-		public bool AddState (string stateName, System.Type componentType, string animationName, int layerId = 0, int bitmask = int.MaxValue)
+		public bool AddState (string stateName, System.Type actionType, string animationName, int layerId = 0, int bitmask = int.MaxValue)
 		{
 			State newState = new State (stateName, bitmask);
 			if (AddState (newState, layerId)) {
-				if (newState.AddComponent (componentType) == null) {
+				if (AddComponent (newState, actionType) == null) {
 					RemoveState (newState);
 					return false;
 				}
-				if (!newState.AddAnimation (animationName)) {
+				if (!AddAnimation (newState, animationName)) {
 					RemoveState (newState);
 					return false;
 				}
@@ -219,11 +236,11 @@ namespace AgentManagerNamespace
 		 * @param bitmask Hide lower layers when it bit is 0
 		 * @return A refence to de state created, null if it has not been created.
 		 */
-		public bool AddState (string stateName, System.Type componentType, int layerId = 0, int bitmask = int.MaxValue)
+		public bool AddState (string stateName, System.Type actionType, int layerId = 0, int bitmask = int.MaxValue)
 		{
 			State newState = new State (stateName, bitmask);
 			if (AddState (newState, layerId)) {
-				if (newState.AddComponent (componentType) == null) {
+				if (AddComponent (newState, actionType) == null) {
 					RemoveState (newState);
 					return false;
 				}
@@ -244,7 +261,7 @@ namespace AgentManagerNamespace
 		{
 			State newState = new State (stateName, bitmask);
 			if (AddState (newState, layerId)) {
-				if (!newState.AddAnimation (animationName)) {
+				if (!AddAnimation (newState, animationName)) {
 					RemoveState (newState);
 					return false;
 				}
@@ -286,10 +303,10 @@ namespace AgentManagerNamespace
 		 * @param typeComponent Script component to be enabled.
 		 * @param stateName State to add the component.
 		 * @param layerId Layer where the state is.
-		 * @param reset Force to reenable a script if it where
+		 * @param reset Force to reenable a script if it were already actived
 		 * @return Return true if the animation has been added.
 		 */
-		public bool AddComponent (System.Type typeComponent, string stateName, int layerId = 0,  bool reset = false)
+		public bool AddAction (System.Type actionType, string stateName, int layerId = 0, bool reset = false)
 		{
 			State auxState = FindState (stateName, layerId);
 			if (auxState == null) {
@@ -297,7 +314,7 @@ namespace AgentManagerNamespace
 				return false;
 			}
 
-			if (auxState.AddComponent (typeComponent, reset) != null)
+			if (AddComponent (auxState, actionType, reset) != null)
 				return true;
 			return false;
 		}
@@ -308,9 +325,10 @@ namespace AgentManagerNamespace
 		 * @param animationName The name of the animation to be actived.
 		 * @param stateName State to add the animation.
 		 * @param layerId Layer where the state is.
+		 * @param reset Force to turn off the animation before activating it
 		 * @return Return true if the animation has been added.
 		 */
-		public bool AddAnimation (string animationName, string stateName, int layerId = 0,  bool reset = false)
+		public bool AddAnimation (string animationName, string stateName, int layerId = 0, bool reset = false)
 		{
 			State auxState = FindState (stateName, layerId);
 			if (auxState == null) {
@@ -318,7 +336,7 @@ namespace AgentManagerNamespace
 				return false;
 			}
 
-			if (auxState.AddAnimation (animationName))
+			if (AddAnimation (auxState, animationName, reset))
 				return true;
 			return false;
 		}
@@ -330,15 +348,30 @@ namespace AgentManagerNamespace
 		 * @param layerId Layer where the state is.
 		 * @return Return true if the state is actived.
 		 */
-		public bool IsActivedState (string stateName, int layerId = 0,  bool reset = false)
+		public bool IsStateActivated (string stateName, int layerId = 0)
 		{
 			State state = FindState (stateName, layerId);
 			if (state == null) {
 				Debug.LogWarningFormat ("The state {0} could not be found in layer {1}.", stateName, layerId);
 				return false;
 			}
-
 			return state.Actived;
+		}
+
+
+		/** @brief Check if the agent has any state with this name actived.
+		 * 
+		 * @param stateName State to check.
+		 * @return Return true if the state exists and is actived.
+		 */
+		public bool HasActivatedState (string stateName)
+		{
+			List<State> states = FindState (stateName);
+			foreach (State state in states) {
+				if (state.Actived)
+					return true;
+			}
+			return false;
 		}
 
 
@@ -347,8 +380,12 @@ namespace AgentManagerNamespace
 		public void Update ()
 		{
 			if (Enabled) {
-				// It is needed to update changes made by the messages before checking transitions
-				UpdateContext ();
+				if (_firstTimeUpdate) {
+					foreach (var layer in _layers) {
+						layer.Enabled = true;
+					}
+					_firstTimeUpdate = false;
+				}
 				foreach (Layer layerI in _layers) {
 					layerI.Update ();
 				}
@@ -387,18 +424,76 @@ namespace AgentManagerNamespace
 		 * @param content The content of the message
 		 * @return True if the message has been successfully sent
 		 */
-		public bool SendMessage (AgentManager.MsgType typeMsg, string content)
+		public bool SendMsg (string stateName, AgentManager.MsgType msgType = AgentManager.MsgType.STARDAR_MSG)
 		{
-			if (typeMsg == AgentManager.MsgType.INTERRUPTING_MSG) {
-				List<State> states = FindState (content);
-				if (states.Count == 0) {
-					Debug.LogWarningFormat ("The state {0} was not found to be interrupting.", content);
-					return false;
+			return SendMsg (stateName, null, msgType);
+		}
+
+		/** @brief Sends diffents messages types to state components
+		 * 
+		 * @param agentName The agent to send the message
+		 * @param msgType The type of message
+		 * @param content The content of the message
+		 * @return True if the message has been successfully sent
+		 */
+		public bool SendMsg (string stateName, object value, AgentManager.MsgType msgType = AgentManager.MsgType.STARDAR_MSG)
+		{
+			List<State> states = FindState (stateName);
+			if (states.Count == 0) {
+				Debug.LogWarningFormat ("The state {0} was not found to sent the message.", stateName);
+				return false;
+			}
+			if (msgType == AgentManager.MsgType.INTERRUPTING_MSG) {
+				foreach (State state in states) {
+					state.Layer.ActiveInterruptingState (state, value, UpdateContext);
 				}
-				states [0].Interrupt ();
+				// It is needed to update changes made by the messages before checking transitions
+				//UpdateContext ();
+			}
+			else {
+				foreach (State state in states) {
+					state.Layer.SendStandarMessage (state, value);
+				}
 			}
 			return true;
 		}
+
+
+		/** @brief Sends diffents messages types to state components
+		 * 
+		 * @param agentName The agent to send the message
+		 * @param msgType The type of message
+		 * @param content The content of the message
+		 * @return True if the message has been successfully sent
+		 */
+		public bool SendMsg (string stateName, int layerId, AgentManager.MsgType msgType = AgentManager.MsgType.STARDAR_MSG)
+		{
+			return SendMsg (stateName, layerId, null, msgType);
+		}
+
+		/** @brief Sends diffents messages types to state components
+		 * 
+		 * @param agentName The agent to send the message
+		 * @param msgType The type of message
+		 * @param content The content of the message
+		 * @return True if the message has been successfully sent
+		 */
+		public bool SendMsg (string stateName, int layerId, object value, AgentManager.MsgType msgType = AgentManager.MsgType.STARDAR_MSG)
+		{
+			State state = FindState (stateName, layerId);
+			if (state == null) {
+				Debug.LogWarningFormat ("The state {0} was not found to sent the message.", stateName);
+				return false;
+			}
+			if (msgType == AgentManager.MsgType.INTERRUPTING_MSG) {
+				state.Layer.ActiveInterruptingState (state, value, UpdateContext);
+			}
+			else {
+				state.Layer.SendStandarMessage (state, value);
+			}
+			return true;
+		}
+
 
 
 		#endregion // PUBLIC_METHODS
@@ -493,15 +588,42 @@ namespace AgentManagerNamespace
 		}
 
 
+		private Component AddComponent (State state, System.Type componentType, bool reset = false)
+		{
+			Component auxComponent = state.AddComponent (componentType, reset);
+			if (auxComponent != null) {
+				if (!ComponentTypes.ContainsKey (componentType)) {
+					ComponentTypes [componentType] = 0;
+					_lastComponentTypes [componentType] = 0;
+					_resetComponentTypes [componentType] = false;
+				}
+			}
+			return auxComponent;
+		}
+
+
+		private bool AddAnimation (State state, string animationName, bool reset = false)
+		{
+			bool auxAnimation = state.AddAnimation (animationName, reset);
+			if (auxAnimation) {
+				if (!AnimationNames.ContainsKey (animationName)) {
+					AnimationNames [animationName] = 0;
+					_lastAnimationNames [animationName] = 0;
+					_resetAnimationNames [animationName] = false;
+				}
+			}
+			return auxAnimation;
+		}
+
 		//! Update State of components and animators
 		private void UpdateContext ()
 		{
 			// Update state of animations and components
 			foreach (var item in _animationNames) {
-				// I need to save the last animation state because I there are trigger animations variables
-				if (!_lastAnimationNames.ContainsKey (item.Key))
-					_lastAnimationNames [item.Key] = 0;
-
+				if (_resetAnimationNames [item.Key] && _lastAnimationNames [item.Key] > 0 && item.Value > 0) {
+					_animator.SetBool (item.Key, false);
+					_animator.SetBool (item.Key, true);
+				}
 				if (_lastAnimationNames [item.Key] == 0 && item.Value > 0)
 					_animator.SetBool (item.Key, true);
 				if (_lastAnimationNames [item.Key] > 0 && item.Value == 0)
@@ -513,19 +635,49 @@ namespace AgentManagerNamespace
 
 			foreach (var item in _componentTypes) {
 				Component component = _character.GetComponent (item.Key);
+				if (_resetComponentTypes [item.Key]) {
+					if (_lastComponentTypes [item.Key] > 0 && item.Value > 0) {
+						if ((component as MonoBehaviour).enabled) {
+							// Deactivate
+							(component as MonoBehaviour).enabled = false;
+							MethodInfo method = component.GetType ().GetMethod ("OnActionDeactivate");
+							if (method != null) {
+								object result = method.Invoke (component, new object[0]);
+							}
+							// Activate
+							(component as MonoBehaviour).enabled = true;
+							method = component.GetType ().GetMethod ("OnActionActivate");
+							if (method != null) {
+								object result = method.Invoke (component, new object[0]);
+							}
 
-				if (!_lastComponentTypes.ContainsKey (item.Key))
-					_lastComponentTypes [item.Key] = 0;
-
+							// Reset
+							method = component.GetType ().GetMethod ("OnActionReset");
+							if (method != null) {
+								object result = method.Invoke (component, new object[0]);
+							}
+						}
+						_resetComponentTypes [item.Key] = false;
+					}
+				}
 				if (_lastComponentTypes [item.Key] == 0 && item.Value > 0) {
 					// Check if it is enabled already
 					if (!(component as MonoBehaviour).enabled) {
 						(component as MonoBehaviour).enabled = true;
+
+						MethodInfo method = component.GetType ().GetMethod ("OnActionActivate");
+						if (method != null) {
+							object result = method.Invoke (component, new object[0]);
+						}
 					}
 				}
-				if (_lastComponentTypes [item.Key] > 0 && item.Value == 0) {
+				else if (_lastComponentTypes [item.Key] > 0 && item.Value == 0) {
 					if ((component as MonoBehaviour).enabled) {
 						(component as MonoBehaviour).enabled = false;
+						MethodInfo method = component.GetType ().GetMethod ("OnActionDeactivate");
+						if (method != null) {
+							object result = method.Invoke (component, new object[0]);
+						}
 					}
 				}
 

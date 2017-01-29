@@ -19,6 +19,7 @@ namespace AgentManagerNamespace
 		//! Different types of messages
 		public enum MsgType
 		{
+			STARDAR_MSG,
 			INTERRUPTING_MSG
 		}
 			
@@ -146,7 +147,13 @@ namespace AgentManagerNamespace
 		public bool RemoveAgent (string agentName)
 		{
 			// The Equals method only checks name for equality.
-			return _agents.Remove (new Agent (agentName));
+			if (_agents.Remove (new Agent (agentName))) {
+				return true;
+			}
+			else {
+				Debug.LogWarningFormat ("The agent {0} tried to be removed does not exist.", agentName);
+				return false;
+			}
 		}
 
 
@@ -157,13 +164,53 @@ namespace AgentManagerNamespace
 		 * @param content The content of the message
 		 * @return True if the message has been successfully sent
 		 */
-		public bool SendMessage(string agentName, MsgType msgType, string content) {
+		public bool SendMsg(string agentName, string stateName, MsgType msgType = MsgType.STARDAR_MSG) {
+			return SendMsg(agentName, stateName, null, msgType);
+		}
+
+		/** @brief Sends diffents messages types to state components
+		 * 
+		 * @param agentName The agent to send the message
+		 * @param msgType The type of message
+		 * @param content The content of the message
+		 * @return True if the message has been successfully sent
+		 */
+		public bool SendMsg(string agentName, string stateName, object value, MsgType msgType = MsgType.STARDAR_MSG) {
 			Agent agent = GetAgent (agentName);
 			if (agent == null) {
 				Debug.LogWarningFormat ("The agent {0} does not exists", agentName);
 				return false;
 			}
-			return agent.SendMessage (msgType, content);
+			return agent.SendMsg (stateName, value, msgType);
+		}
+
+
+
+		/** @brief Sends diffents messages types to state components
+		 * 
+		 * @param agentName The agent to send the message
+		 * @param msgType The type of message
+		 * @param content The content of the message
+		 * @return True if the message has been successfully sent
+		 */
+		public bool SendMsg(string agentName, string stateName, int layerId, MsgType msgType = MsgType.STARDAR_MSG) {
+			return SendMsg (agentName, stateName, layerId, null, msgType);
+		}
+
+		/** @brief Sends diffents messages types to state components
+		 * 
+		 * @param agentName The agent to send the message
+		 * @param msgType The type of message
+		 * @param content The content of the message
+		 * @return True if the message has been successfully sent
+		 */
+		public bool SendMsg(string agentName, string stateName, int layerId, object value, MsgType msgType = MsgType.STARDAR_MSG) {
+			Agent agent = GetAgent (agentName);
+			if (agent == null) {
+				Debug.LogWarningFormat ("The agent {0} does not exists", agentName);
+				return false;
+			}
+			return agent.SendMsg (stateName, layerId, value, msgType);
 		}
 
 		#endregion // PUBLIC_METHODS

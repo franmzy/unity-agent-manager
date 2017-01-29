@@ -2,6 +2,7 @@ using UnityEngine;
 using System.Collections;
 using System.Collections.Generic;
 using System;
+using System.Reflection;
 
 namespace AgentManagerNamespace
 {
@@ -26,6 +27,8 @@ namespace AgentManagerNamespace
 
 		private bool _enabled = false;
 
+		private State _initialState;
+
 		#endregion // PRIVATE_MEMBER_VARIABLES
 
 
@@ -36,18 +39,22 @@ namespace AgentManagerNamespace
 		public int Id {	get { return _id; } }
 
 		//! Initial state in this Layer
-		public State InitialState { get; set; }
+		public State InitialState { 
+			get { return _initialState; } 
+			set {
+				_initialState = value;
+			}
+		}
 
 		/// Enables the Layer for working.
 		public bool Enabled {
 			get { return _enabled; }
 			set { 
 				if (!_enabled && value) {
-					_currentState = InitialState;
-					_currentState.ActivateState ();
+					CurrentState = InitialState;
 				}
 				if (_enabled && !value) {
-					_currentState.DeactivateState ();
+					CurrentState = null;
 				}
 				_enabled = value;
 			}
@@ -55,6 +62,20 @@ namespace AgentManagerNamespace
 
 		/// Agent that contains this state.
 		public Agent Agent { get; set; }
+
+		/// Current state
+		public State CurrentState {
+			get { return _currentState; }
+			set {
+				if (_currentState != value) {
+					if (_currentState != null)
+						_currentState.DeactivateState ();
+					_currentState = value;
+					if (_currentState != null)
+						_currentState.ActivateState ();
+				}
+			}
+		}
 
 		#endregion // GETTERS_AND_SETTERS_METHODS
 
@@ -108,7 +129,7 @@ namespace AgentManagerNamespace
 		}
 
 
-		/** \brief Comparation between Layers.
+		/** \brief Comparation between Layers, sorted in decreassing order.
 		 * 
 		 * @param layer Layer to compare with.
 		 */
@@ -118,7 +139,7 @@ namespace AgentManagerNamespace
 			if (compareLayer == null)
 				return 1;
 			else
-				return this._id.CompareTo (compareLayer._id);
+				return compareLayer._id.CompareTo (this._id);
 		}
 
 
@@ -134,12 +155,15 @@ namespace AgentManagerNamespace
 				Debug.LogWarningFormat ("The state {0} does already exist in the layer {1}.", state.Name, _id);
 				return false;
 			}
-			// By default the first state is the initial state.
-			if (_states.Count == 0) {
-				InitialState = state;
-			}
+
 			state.Layer = this;
 			_states.Add (state);
+
+			// By default the first state is the initial state.
+			if (_states.Count == 1) {
+				InitialState = state;
+			}
+
 			return true;
 		}
 
@@ -151,6 +175,14 @@ namespace AgentManagerNamespace
 		 */
 		public bool RemoveState (State state)
 		{
+			if (state == InitialState) {
+				if (_states.Count > 0) {
+					InitialState = _states [0];
+				}
+				else {
+					InitialState = null;
+				}
+			}
 			return _states.Remove (state);
 		}
 
@@ -204,44 +236,98 @@ namespace AgentManagerNamespace
 		}
 
 
-		public void ActiveInterruptingState (State interruptingState)
+		public void ActiveInterruptingState (State interruptingState, object value, Action UpdateContex)
 		{
 			if (Enabled) {
-				State lastState = _currentState;
-				_currentState = interruptingState;
+				CurrentState = interruptingState;
 
-				lastState.DeactivateState ();
-				_currentState.ActivateState ();
+				// ActionActivate before OnActionInterrupting
+				UpdateContex ();
+
+				// Calling onInterruptingAction
+				if (value != null) {
+					foreach (System.Type componentType in interruptingState.ComponentTypes) {
+						Component component = Agent.Character.GetComponent (componentType);
+						MethodInfo method = component.GetType ().GetMethod ("OnActionInterrupting", new Type[] { typeof(object) });
+						if (method != null) {
+							object result = method.Invoke (component, new object[] { value });
+						}
+					}
+				}
+				else {
+					foreach (System.Type componentType in interruptingState.ComponentTypes) {
+						Component component = Agent.Character.GetComponent (componentType);
+						MethodInfo method = component.GetType ().GetMethod ("OnActionInterrupting");
+						if (method != null) {
+							object result = method.Invoke (component, new object[0]);
+						}
+					}
+				}
 			}
 		}
 
-		public void Mask(){
-			_masked++;
-			if (_masked == 1) {
-				Enabled = false;
+
+		public void SendStandarMessage (State state, object value)
+		{
+			// Calling onInterruptingAction
+			if (value != null) {
+				foreach (System.Type componentType in state.ComponentTypes) {
+					Component component = Agent.Character.GetComponent (componentType);
+					MethodInfo method = component.GetType ().GetMethod ("OnReceiveMessage", new Type[] { typeof(object) });
+					if (method != null) {
+						object result = method.Invoke (component, new object[] { value });
+					}
+				}
+			}
+			else {
+				foreach (System.Type componentType in state.ComponentTypes) {
+					Component component = Agent.Character.GetComponent (componentType);
+					MethodInfo method = component.GetType ().GetMethod ("OnReceiveMessage");
+					if (method != null) {
+						object result = method.Invoke (component, new object[0]);
+					}
+				}
 			}
 		}
 
-
-		public void Unmask(){
-			_masked--;
+		public void Mask ()
+		{
 			if (_masked == 0) {
-				Enabled = true;
+                foreach (System.Type componentType in CurrentState.ComponentTypes) {
+					Component component = Agent.Character.GetComponent (componentType);
+					MethodInfo method = component.GetType ().GetMethod ("OnActionMasked");
+					if (method != null) {
+						object result = method.Invoke (component, new object[0]);
+					}
+				}
+                Enabled = false;
+            }
+            _masked++;
+		}
+
+
+		public void Unmask ()
+		{
+			if (_masked == 1) {
+                Enabled = true;
+                foreach (System.Type componentType in CurrentState.ComponentTypes) {
+					Component component = Agent.Character.GetComponent (componentType);
+					MethodInfo method = component.GetType ().GetMethod ("OnActionUnmasked");
+					if (method != null) {
+						object result = method.Invoke (component, new object[0]);
+					}
+				}
 			}
+			_masked--;
 		}
 
 		//! Updates the State of the Layer
 		public void Update ()
 		{
 			if (Enabled) {
-				Transition activedTransition = _currentState.GetActivedTransition ();
+				Transition activedTransition = CurrentState.GetActivedTransition ();
 				if (activedTransition != null) {
-					State lastState = _currentState;
-					_currentState = activedTransition.TargetState;
-					// Update states
-					lastState.DeactivateState ();
-					_currentState.ActivateState ();
-
+					CurrentState = activedTransition.TargetState;
 				}
 			}
 		}

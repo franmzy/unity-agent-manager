@@ -63,7 +63,7 @@ namespace AgentManagerNamespace
 			_priority = priority;
 		}
 
-		/** \brief Compares Transitions.
+		/** \brief Compares Transitions in decreassing order.
 		 * 
 		 * It compares transtions if descending order.
 		 * @param compareTransition Transition to compare with.
@@ -75,7 +75,7 @@ namespace AgentManagerNamespace
 				return 1;
 			else
 				return compareTransition._priority.CompareTo (this._priority);
-				//return this._priority.CompareTo (compareTransition._priority);
+			//return this._priority.CompareTo (compareTransition._priority);
 		}
 
 		/** \brief Returns if the transition can be performed.
