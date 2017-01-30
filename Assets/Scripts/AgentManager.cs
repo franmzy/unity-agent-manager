@@ -157,60 +157,40 @@ namespace AgentManagerNamespace
 		}
 
 
-		/** @brief Sends diffents messages types to state components
+		/** @brief Sends diffents messages types to state components with no sender
 		 * 
-		 * @param agentName The agent to send the message
+		 * @param agentName The agent to send the message to
+		 * @param stateName State to receive the message
+		 * @param value Content of the message
 		 * @param msgType The type of message
-		 * @param content The content of the message
 		 * @return True if the message has been successfully sent
 		 */
-		public bool SendMsg(string agentName, string stateName, MsgType msgType = MsgType.STARDAR_MSG) {
-			return SendMsg(agentName, stateName, null, msgType);
-		}
-
-		/** @brief Sends diffents messages types to state components
-		 * 
-		 * @param agentName The agent to send the message
-		 * @param msgType The type of message
-		 * @param content The content of the message
-		 * @return True if the message has been successfully sent
-		 */
-		public bool SendMsg(string agentName, string stateName, object value, MsgType msgType = MsgType.STARDAR_MSG) {
+		public bool SendMsg(string agentName, string stateName, object value, Agent sender=null, MsgType msgType = MsgType.STARDAR_MSG) {
 			Agent agent = GetAgent (agentName);
 			if (agent == null) {
 				Debug.LogWarningFormat ("The agent {0} does not exists", agentName);
 				return false;
 			}
-			return agent.SendMsg (stateName, value, msgType);
+			return agent.SendMsg (stateName, value, sender, msgType);
 		}
 
 
-
-		/** @brief Sends diffents messages types to state components
+		/** @brief Sends diffents messages types to state components with no sender
 		 * 
-		 * @param agentName The agent to send the message
+		 * @param agentName The agent to send the message to
+		 * @param stateName State to receive the message
+		 * @param layerId Layer to receive the message
+		 * @param value Content of the message
 		 * @param msgType The type of message
-		 * @param content The content of the message
 		 * @return True if the message has been successfully sent
 		 */
-		public bool SendMsg(string agentName, string stateName, int layerId, MsgType msgType = MsgType.STARDAR_MSG) {
-			return SendMsg (agentName, stateName, layerId, null, msgType);
-		}
-
-		/** @brief Sends diffents messages types to state components
-		 * 
-		 * @param agentName The agent to send the message
-		 * @param msgType The type of message
-		 * @param content The content of the message
-		 * @return True if the message has been successfully sent
-		 */
-		public bool SendMsg(string agentName, string stateName, int layerId, object value, MsgType msgType = MsgType.STARDAR_MSG) {
+		public bool SendMsg(string agentName, string stateName, int layerId, object value, Agent sender=null, MsgType msgType = MsgType.STARDAR_MSG) {
 			Agent agent = GetAgent (agentName);
 			if (agent == null) {
 				Debug.LogWarningFormat ("The agent {0} does not exists", agentName);
 				return false;
 			}
-			return agent.SendMsg (stateName, layerId, value, msgType);
+			return agent.SendMsg (stateName, layerId, value, sender, msgType);
 		}
 
 		#endregion // PUBLIC_METHODS

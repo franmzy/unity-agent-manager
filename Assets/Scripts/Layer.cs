@@ -177,7 +177,14 @@ namespace AgentManagerNamespace
 		{
 			if (state == InitialState) {
 				if (_states.Count > 0) {
-					InitialState = _states [0];
+					if (_states [0] != state)
+						InitialState = _states [0];
+					else if (_states.Count > 1) {
+						InitialState = _states [1];
+					}
+					else {
+						InitialState = null;
+					}	
 				}
 				else {
 					InitialState = null;
@@ -236,69 +243,23 @@ namespace AgentManagerNamespace
 		}
 
 
-		public void ActiveInterruptingState (State interruptingState, object value, Action UpdateContex)
+		public void ActiveInterruptingState (State interruptingState, object value, Agent sender = null)
 		{
-			if (Enabled) {
-				CurrentState = interruptingState;
-
-				// ActionActivate before OnActionInterrupting
-				UpdateContex ();
-
-				// Calling onInterruptingAction
-				if (value != null) {
-					foreach (System.Type componentType in interruptingState.ComponentTypes) {
-						Component component = Agent.Character.GetComponent (componentType);
-						MethodInfo method = component.GetType ().GetMethod ("OnActionInterrupting", new Type[] { typeof(object) });
-						if (method != null) {
-							object result = method.Invoke (component, new object[] { value });
-						}
-					}
-				}
-				else {
-					foreach (System.Type componentType in interruptingState.ComponentTypes) {
-						Component component = Agent.Character.GetComponent (componentType);
-						MethodInfo method = component.GetType ().GetMethod ("OnActionInterrupting");
-						if (method != null) {
-							object result = method.Invoke (component, new object[0]);
-						}
-					}
-				}
-			}
+			CurrentState = interruptingState;
+			CurrentState.SendInterruptingMsg (value, sender);
 		}
 
 
-		public void SendStandarMessage (State state, object value)
+		public void SendStandarMessage (State state, object value, Agent sender = null)
 		{
-			// Calling onInterruptingAction
-			if (value != null) {
-				foreach (System.Type componentType in state.ComponentTypes) {
-					Component component = Agent.Character.GetComponent (componentType);
-					MethodInfo method = component.GetType ().GetMethod ("OnReceiveMessage", new Type[] { typeof(object) });
-					if (method != null) {
-						object result = method.Invoke (component, new object[] { value });
-					}
-				}
-			}
-			else {
-				foreach (System.Type componentType in state.ComponentTypes) {
-					Component component = Agent.Character.GetComponent (componentType);
-					MethodInfo method = component.GetType ().GetMethod ("OnReceiveMessage");
-					if (method != null) {
-						object result = method.Invoke (component, new object[0]);
-					}
-				}
-			}
+			state.SendStandardMsg(value, sender);
 		}
 
 		public void Mask ()
 		{
 			if (_masked == 0) {
-                foreach (System.Type componentType in CurrentState.ComponentTypes) {
-					Component component = Agent.Character.GetComponent (componentType);
-					MethodInfo method = component.GetType ().GetMethod ("OnActionMasked");
-					if (method != null) {
-						object result = method.Invoke (component, new object[0]);
-					}
+				foreach (State state in _states) {
+					state.Mask ();
 				}
                 Enabled = false;
             }
@@ -310,12 +271,8 @@ namespace AgentManagerNamespace
 		{
 			if (_masked == 1) {
                 Enabled = true;
-                foreach (System.Type componentType in CurrentState.ComponentTypes) {
-					Component component = Agent.Character.GetComponent (componentType);
-					MethodInfo method = component.GetType ().GetMethod ("OnActionUnmasked");
-					if (method != null) {
-						object result = method.Invoke (component, new object[0]);
-					}
+				foreach (State state in _states) {
+					state.Unmask ();
 				}
 			}
 			_masked--;
@@ -329,6 +286,7 @@ namespace AgentManagerNamespace
 				if (activedTransition != null) {
 					CurrentState = activedTransition.TargetState;
 				}
+				CurrentState.Update ();
 			}
 		}
 

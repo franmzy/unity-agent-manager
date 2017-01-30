@@ -23,13 +23,16 @@ namespace AgentManagerNamespace
 		// Possible transitions for this state
 		private List<Transition> _transitions = new List<Transition> ();
 		// Animations actived in this state
-		private HashSet<string> _animationNames = new HashSet<string> ();
-		private Dictionary<string, bool> _resetAnimation = new Dictionary<string, bool> ();
-		// Animations actived in this state
-		private HashSet<System.Type> _componentTypes = new HashSet<System.Type> ();
-		private Dictionary<System.Type, bool> _resetComponent = new Dictionary<System.Type, bool> ();
-
+		private string _animationName;
+		// Action actived in this state
+		private HashSet<System.Type> _logicActionTypes = new HashSet<System.Type> ();
+		// Activated state
 		private bool _activated = false;
+
+		// VisualAction object
+		List<VisualActionAbstract> _visualActions = new List<VisualActionAbstract>();
+		List<LogicActionAbstract<VisualActionAbstract, PerceptionAbstract>> _logicActions = 
+			new List<LogicActionAbstract<VisualActionAbstract, PerceptionAbstract>>();
 
 		#endregion // PRIVATE_MEMBER_VARIABLES
 
@@ -49,8 +52,6 @@ namespace AgentManagerNamespace
 		public int Bitmask { get; set; }
 
 		public bool Actived { get { return _activated; } }
-
-		public List<System.Type> ComponentTypes { get { return _componentTypes.ToList (); } }
 
 		#endregion // GETTERS_AND_SETTERS_METHODS
 
@@ -120,6 +121,11 @@ namespace AgentManagerNamespace
 			}
 				
 			Transition newTransition = new Transition (targetState, trigger, priority);
+			// Check if this transition alreary exists.
+			if (_transitions.Contains (newTransition)) {
+				Debug.LogWarningFormat ("This transition {0}-{1} does already exist.", this.Name, newTransition.TargetState.Name);
+				return null;
+			}
 			// Adding the transtion.
 			_transitions.Add (newTransition);
 			// Sorting transtions by prority.
@@ -155,55 +161,34 @@ namespace AgentManagerNamespace
 		 * @param animationName The name of the animation to be actived.
 		 * @return Return true if the animation has been added.
 		 */
-		public bool AddAnimation (string animationName, bool reset = false)
+		public void SetAnimation (string animationName)
 		{
-			if (_animationNames.Contains (animationName)) {
-				Debug.LogWarningFormat ("The State {0} already contain the animation {1}.", Name, animationName);
-				return false;
-			}
-			_animationNames.Add (animationName);
-			_resetAnimation [animationName] = reset;
-	
-			return true;
+			_animationName = animationName;
 		}
 
 
-		/** @brief Add a Component(Script) to be enabled in this State.
+
+		/** @brief Add a Action to be enabled in this State.
 		 * 
 		 * If the component is already created in the game object it returns it.
-		 * @param typeComponent Script component to be enabled.
-		 * @param reset Force to reenable a script if it where
-		 * @return Return true if the animation has been added.
+		 * @return Return true if the action has been added.
 		 */
-		public Component AddComponent (System.Type typeComponent, bool reset = false)
+		public bool AddAction <L, V>() 
+			where L:LogicActionAbstract<VisualActionAbstract, PerceptionAbstract>, new()
+			where V:VisualActionAbstract, new()
 		{
 			// Check if the component already exists
-			if (_componentTypes.Contains (typeComponent)) {
-				Debug.LogWarningFormat ("The State {0} already has the component {1}.", Name, typeComponent.Name);
-				return null;
+			if (_logicActionTypes.Contains (typeof(L))) {
+				Debug.LogWarningFormat ("The State {0} already has the logic action {1}.", Name, (typeof(L)).Name);
+				return false;
 			}
 
-			// Check if the component already exists
-			Component newComponent = Layer.Agent.Character.GetComponent (typeComponent);
-			// If not add it
-			if (newComponent == null) {
-				newComponent = Layer.Agent.Character.AddComponent (typeComponent);
-				// Only initializing to false when it is new added
-				(newComponent as MonoBehaviour).enabled = false;
-			}
+			L logicAction = new L();
+			logicAction.Initialize (Layer.Agent, Layer.Agent.Character);
 
-			// Check if the component is MonoBehaviour
-			if (!(newComponent is MonoBehaviour)) {
-				Debug.LogWarningFormat ("The componente {0} is not MonoBehaviour type.", typeComponent.Name);
-				// Removing the component if it is no monobehaviour.
-				GameObject.Destroy (newComponent);
-				return null;
-			}
-
-			_componentTypes.Add (typeComponent);
-			_resetComponent [typeComponent] = reset;
-
-			return newComponent;
+			_visualActions.Add (logicAction.VisualAction);
+			_logicActions.Add (logicAction);
+			return true;
 		}
 
 
@@ -226,22 +211,16 @@ namespace AgentManagerNamespace
 		{
 			if (!_activated) {
 				// Active animations
-				foreach (string animationName in _animationNames) {
-					if (_resetAnimation [animationName]) {
-						Layer.Agent.ResetAnimationNames [animationName] = true;
-					}
-					Layer.Agent.AnimationNames [animationName]++;
+				Layer.Agent.AnimationController.ActivateAnimation(_animationName);
+
+				// Active Logic Actions
+				foreach (var logicAction in _logicActions) {
+					logicAction.Activate ();
 				}
 
-				// Active Components
-				foreach (System.Type componentType in _componentTypes) {
-					// If this component is found as reset 
-					// it is reseted to active de onEnable event.
-					// To do it we disable it an it will be enabled in the update period.
-					if (_resetComponent [componentType]) {
-						Layer.Agent.ResetComponentTypes [componentType] = true;
-					}
-					Layer.Agent.ComponentTypes [componentType]++;
+				// Active Visual Actions
+				foreach (VisualActionAbstract visualAction in _visualActions) {
+					visualAction.Activate ();
 				}
 
 				// Control Mask
@@ -271,14 +250,18 @@ namespace AgentManagerNamespace
 		{
 			if (_activated) {
 				// Deactive animations
-				foreach (string animationName in _animationNames) {
-					Layer.Agent.AnimationNames [animationName]--;
+				Layer.Agent.AnimationController.DeactivateAnimation(_animationName);
+
+				// Deactive Logic Actions
+				foreach (var logicAction in _logicActions) {
+					logicAction.Deactivate ();
 				}
 
-				// Deactive Components
-				foreach (System.Type componentType in _componentTypes) {
-					Layer.Agent.ComponentTypes [componentType]--;
+				// Deactive Visual Actions
+				foreach (VisualActionAbstract visualAction in _visualActions) {
+					visualAction.Deactivate ();
 				}
+
 
 				// Control Mask
 				int layerId = Layer.Id - 1;
@@ -296,6 +279,56 @@ namespace AgentManagerNamespace
 			}
 		}
 
+
+		public void SendInterruptingMsg(object value, Agent sender = null) {
+			// Send interrupting messages to logic actions
+			foreach (var logicAction in _logicActions) {
+				logicAction.ReceiveInterruptingMessage (value, sender);
+			}
+		}
+
+		public void SendStandardMsg(object value, Agent sender = null) {
+			// Send interrupting messages to logic actions
+			foreach (var logicAction in _logicActions) {
+				logicAction.ReceiveStandarMessage (value, sender);
+			}
+		}
+
+		public void Mask() {
+			// Deactive Logic Actions
+			foreach (var logicAction in _logicActions) {
+				logicAction.Mask ();
+			}
+
+			// Deactive Visual Actions
+			foreach (VisualActionAbstract visualAction in _visualActions) {
+				visualAction.Mask ();
+			}
+		}
+
+		public void Unmask() {
+			// Deactive Logic Actions
+			foreach (var logicAction in _logicActions) {
+				logicAction.Unmask ();
+			}
+
+			// Deactive Visual Actions
+			foreach (VisualActionAbstract visualAction in _visualActions) {
+				visualAction.Unmask ();
+			}
+		}
+
+		public void Update() {
+			// Deactive Logic Actions
+			foreach (var logicAction in _logicActions) {
+				logicAction.Update ();
+			}
+
+			// Deactive Visual Actions
+			foreach (VisualActionAbstract visualAction in _visualActions) {
+				visualAction.Update ();
+			}
+		}
 		#endregion // PUBLIC_METHODS
 
 
