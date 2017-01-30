@@ -4,7 +4,7 @@ using UnityEngine;
 
 namespace AgentManagerNamespace
 {
-	public abstract class PerceptionAbstract
+	public class PerceptionAbstract
 	{
 		#region PUBLIC_MEMBER_VARIABLES
 

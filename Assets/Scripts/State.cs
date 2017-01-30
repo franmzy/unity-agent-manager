@@ -173,9 +173,10 @@ namespace AgentManagerNamespace
 		 * If the component is already created in the game object it returns it.
 		 * @return Return true if the action has been added.
 		 */
-		public bool AddAction <L, V>() 
-			where L:LogicActionAbstract<VisualActionAbstract, PerceptionAbstract>, new()
+		public bool AddAction <L, V, P>() 
+			where L:LogicActionAbstract<V, P>, new()
 			where V:VisualActionAbstract, new()
+			where P:PerceptionAbstract, new()
 		{
 			// Check if the component already exists
 			if (_logicActionTypes.Contains (typeof(L))) {
@@ -187,7 +188,7 @@ namespace AgentManagerNamespace
 			logicAction.Initialize (Layer.Agent, Layer.Agent.Character);
 
 			_visualActions.Add (logicAction.VisualAction);
-			_logicActions.Add (logicAction);
+			_logicActions.Add ((LogicActionAbstract<VisualActionAbstract, PerceptionAbstract>)(object)logicAction);
 			return true;
 		}
 

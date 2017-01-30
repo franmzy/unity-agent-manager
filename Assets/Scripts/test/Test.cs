@@ -17,13 +17,13 @@ public class Test : MonoBehaviour {
 		// Adding Run State
 		orc.AddState("run", "Run");
 
-		orc.AddAction<RunLogicAction, RunVisualAction> ("run");
+		orc.AddAction<RunLogicAction, RunVisualAction, OrcPerception> ("run");
 
 		// Adding Idle => Run transition
-		orc.AddTransition("idle", "run", new TransitionTrigger ( () => ((OrcPerception) orc.Perception).InputDirection != Vector3.zero));
+		//orc.AddTransition("idle", "run", new TransitionTrigger ( () => ((OrcPerception) orc.Perception).InputDirection != Vector3.zero));
 
 		// Adding Run => Idle transition (Different way to do it)
-		orc.AddTransition("run", "idle", new TransitionTrigger ( () => ((OrcPerception) orc.Perception).InputDirection == Vector3.zero));
+		//orc.AddTransition("run", "idle", new TransitionTrigger ( () => ((OrcPerception) orc.Perception).InputDirection == Vector3.zero));
 
 
 

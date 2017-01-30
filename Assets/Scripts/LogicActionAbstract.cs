@@ -4,9 +4,9 @@ using UnityEngine;
 
 namespace AgentManagerNamespace
 {
-	public abstract class LogicActionAbstract <T,P> 
+	public class LogicActionAbstract <T,P> 
 		where T : VisualActionAbstract, new()
-		where P : PerceptionAbstract
+		where P : PerceptionAbstract, new()
 	{
 
 		#region PUBLIC_MEMBER_VARIABLES

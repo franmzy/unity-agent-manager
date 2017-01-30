@@ -207,13 +207,14 @@ namespace AgentManagerNamespace
 		 * @param bitmask Hide lower layers when it bit is 0
 		 * @return A refence to de state created, null if it has not been created.
 		 */
-		public bool AddState<L, V> (string stateName, string animationName, int layerId = 0, int bitmask = int.MaxValue)
-			where L:LogicActionAbstract<VisualActionAbstract, PerceptionAbstract>, new() 
+		public bool AddState<L, V, P> (string stateName, string animationName, int layerId = 0, int bitmask = int.MaxValue)
+			where L:LogicActionAbstract<V, P>, new() 
 			where V:VisualActionAbstract, new()
+			where P:PerceptionAbstract, new()
 		{
 			State newState = new State (stateName, bitmask);
 			if (AddState (newState, layerId)) {
-				if (!newState.AddAction<L,V>()) {
+				if (!newState.AddAction<L,V,P>()) {
 					RemoveState (newState);
 					return false;
 				}
@@ -231,13 +232,14 @@ namespace AgentManagerNamespace
 		 * @param bitmask Hide lower layers when it bit is 0
 		 * @return A refence to de state created, null if it has not been created.
 		 */
-		public bool AddState<L, V> (string stateName, int layerId = 0, int bitmask = int.MaxValue) 
-			where L:LogicActionAbstract<VisualActionAbstract, PerceptionAbstract>, new() 
+		public bool AddState<L, V, P> (string stateName, int layerId = 0, int bitmask = int.MaxValue) 
+			where L:LogicActionAbstract<V, P>, new() 
 			where V:VisualActionAbstract, new()
+			where P:PerceptionAbstract, new()
 		{
 			State newState = new State (stateName, bitmask);
 			if (AddState (newState, layerId)) {
-				if (!newState.AddAction<L,V>()) {
+				if (!newState.AddAction<L,V, P>()) {
 					RemoveState (newState);
 					return false;
 				}
@@ -300,9 +302,10 @@ namespace AgentManagerNamespace
 		 * @param reset Force to reenable a script if it were already actived
 		 * @return Return true if the animation has been added.
 		 */
-		public bool AddAction <L, V>(string stateName, int layerId = 0) 
-			where L:LogicActionAbstract<VisualActionAbstract, PerceptionAbstract>, new()
+		public bool AddAction <L, V, P>(string stateName, int layerId = 0) 
+			where L:LogicActionAbstract<V, P>, new()
 			where V:VisualActionAbstract, new()
+			where P:PerceptionAbstract, new()
 		{
 			State state = FindState (stateName, layerId);
 			if (state == null) {
@@ -310,7 +313,7 @@ namespace AgentManagerNamespace
 				return false;
 			}
 
-			return state.AddAction<L,V>();
+			return state.AddAction<L,V,P>();
 		}
 
 

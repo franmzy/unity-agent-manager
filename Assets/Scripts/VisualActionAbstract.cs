@@ -4,7 +4,7 @@ using UnityEngine;
 
 namespace AgentManagerNamespace
 {
-	public  class VisualActionAbstract {
+	public class VisualActionAbstract {
 
 		#region PUBLIC_MEMBER_VARIABLES
 
