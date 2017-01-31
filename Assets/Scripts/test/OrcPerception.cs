@@ -7,16 +7,16 @@ public class OrcPerception : PerceptionAbstract{
 	public Vector3 InputDirection() {
 		Vector3 auxVector = Vector3.zero;
 
-		if (Input.GetKeyDown (KeyCode.RightArrow)) {
+		if (Input.GetKey (KeyCode.RightArrow)) {
 			auxVector.x++;
 		}
-		if (Input.GetKeyDown (KeyCode.LeftArrow)) {
+		if (Input.GetKey (KeyCode.LeftArrow)) {
 			auxVector.x--;
 		}
-		if (Input.GetKeyDown (KeyCode.UpArrow)) {
+		if (Input.GetKey (KeyCode.UpArrow)) {
 			auxVector.z++;
 		}
-		if (Input.GetKeyDown (KeyCode.DownArrow)) {
+		if (Input.GetKey (KeyCode.DownArrow)) {
 			auxVector.z--;
 		}
 		return auxVector;

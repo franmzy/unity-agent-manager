@@ -42,11 +42,11 @@ namespace AgentManagerNamespace
 		// Agent enabled
 		private bool _enabled = true;
 
-		// Perception input
-		private PerceptionAbstract _perception;
-
 		// Animation controller
 		private AnimationController _animationController;
+
+		// Architectures
+		private List<IArchitertureConfiguration> _architectures = new List<IArchitertureConfiguration>();
 
 		#endregion // PRIVATE_MEMBER_VARIABLES
 
@@ -74,9 +74,7 @@ namespace AgentManagerNamespace
 		public string Name { get { return _name; } }
 
 		//! A reference to the character GameObjects that controls this Agent.
-		public GameObject Character { 
-			get { return _character; } 
-		}
+
 
 		/// The Id name that identifies the Agent.
 		public AnimationController AnimationController { get { return _animationController; } }
@@ -85,8 +83,6 @@ namespace AgentManagerNamespace
 		public Dictionary<string, int>  AnimationNames {
 			get { return _animationNames; }
 		}
-
-		public PerceptionAbstract Perception { get { return _perception; } }
 
 		//! Possible actions in this Agent.
 		public Dictionary<System.Type, int>  ActionTypes {
@@ -98,7 +94,7 @@ namespace AgentManagerNamespace
 		public Dictionary<string, bool>  ResetAnimationNames {
 			get { return _resetAnimationNames; }
 		}
-			
+
 
 		/** @brief Get the Initial state of an agent layer.
 		 * 
@@ -151,6 +147,7 @@ namespace AgentManagerNamespace
 		{
 			_name = agentName;
 			_character = character;
+			_character.AddComponent<AgentIdentity> ().Initilize(agentName);
 			_animationController = new AnimationController (character);
 		}
 
@@ -183,6 +180,14 @@ namespace AgentManagerNamespace
 		}
 
 
+		public void AddArchitecture<T> ()
+			where T:IArchitertureConfiguration, new()
+		{
+			IArchitertureConfiguration architecture = new T ();
+			architecture.Initialize (this); 
+			_architectures.Add (architecture);
+		}
+
 		/** \brief Add an State to this Agent.
 		 * 
 		 * @param stateName Id name for the state.
@@ -192,7 +197,7 @@ namespace AgentManagerNamespace
 		 */
 		public bool AddState (string stateName, int layerId = 0, int bitmask = int.MaxValue)
 		{
-			State newState = new State (stateName, bitmask);
+			State newState = new State (stateName, _character, bitmask);
 			if (AddState (newState, layerId))
 				return true;
 			return false;
@@ -207,14 +212,12 @@ namespace AgentManagerNamespace
 		 * @param bitmask Hide lower layers when it bit is 0
 		 * @return A refence to de state created, null if it has not been created.
 		 */
-		public bool AddState<L, V, P> (string stateName, string animationName, int layerId = 0, int bitmask = int.MaxValue)
-			where L:LogicActionAbstract<V, P>, new() 
-			where V:VisualActionAbstract, new()
-			where P:PerceptionAbstract, new()
+		public bool AddState<L> (string stateName, string animationName, int layerId = 0, int bitmask = int.MaxValue)
+			where L:ILogicAction, new()
 		{
-			State newState = new State (stateName, bitmask);
+			State newState = new State (stateName, _character, bitmask);
 			if (AddState (newState, layerId)) {
-				if (!newState.AddAction<L,V,P>()) {
+				if (!newState.AddAction<L> ()) {
 					RemoveState (newState);
 					return false;
 				}
@@ -232,14 +235,12 @@ namespace AgentManagerNamespace
 		 * @param bitmask Hide lower layers when it bit is 0
 		 * @return A refence to de state created, null if it has not been created.
 		 */
-		public bool AddState<L, V, P> (string stateName, int layerId = 0, int bitmask = int.MaxValue) 
-			where L:LogicActionAbstract<V, P>, new() 
-			where V:VisualActionAbstract, new()
-			where P:PerceptionAbstract, new()
+		public bool AddState<L> (string stateName, int layerId = 0, int bitmask = int.MaxValue) 
+			where L:ILogicAction, new()
 		{
-			State newState = new State (stateName, bitmask);
+			State newState = new State (stateName, _character, bitmask);
 			if (AddState (newState, layerId)) {
-				if (!newState.AddAction<L,V, P>()) {
+				if (!newState.AddAction<L> ()) {
 					RemoveState (newState);
 					return false;
 				}
@@ -258,7 +259,7 @@ namespace AgentManagerNamespace
 		 */
 		public bool AddState (string stateName, string animationName, int layerId = 0, int bitmask = int.MaxValue)
 		{
-			State newState = new State (stateName, bitmask);
+			State newState = new State (stateName, _character, bitmask);
 			if (AddState (newState, layerId)) {
 				newState.SetAnimation (animationName);
 				return true;
@@ -302,10 +303,8 @@ namespace AgentManagerNamespace
 		 * @param reset Force to reenable a script if it were already actived
 		 * @return Return true if the animation has been added.
 		 */
-		public bool AddAction <L, V, P>(string stateName, int layerId = 0) 
-			where L:LogicActionAbstract<V, P>, new()
-			where V:VisualActionAbstract, new()
-			where P:PerceptionAbstract, new()
+		public bool AddAction<L> (string stateName, int layerId = 0) 
+			where L: ILogicAction, new()
 		{
 			State state = FindState (stateName, layerId);
 			if (state == null) {
@@ -313,7 +312,7 @@ namespace AgentManagerNamespace
 				return false;
 			}
 
-			return state.AddAction<L,V,P>();
+			return state.AddAction<L> ();
 		}
 
 
@@ -333,7 +332,7 @@ namespace AgentManagerNamespace
 				return false;
 			}
 
-			auxState.SetAnimation(animationName);
+			auxState.SetAnimation (animationName);
 			return true;
 		}
 
@@ -369,7 +368,7 @@ namespace AgentManagerNamespace
 			}
 			return false;
 		}
-			
+
 
 		public bool SetInitialState (string stateName, int layerId = 0)
 		{
@@ -397,7 +396,7 @@ namespace AgentManagerNamespace
 		{
 			return _layers.Find (layer => layer.Id == layerId);
 		}
-			
+
 
 		/** @brief Sends diffents messages types to state components
 		 * 
@@ -451,13 +450,6 @@ namespace AgentManagerNamespace
 			}
 			return true;
 		}
-
-
-		public void AddPerception<T>() where T : PerceptionAbstract, new()
-		{
-			_perception = new T ();
-		}
-
 
 		#endregion // PUBLIC_METHODS
 
@@ -549,7 +541,7 @@ namespace AgentManagerNamespace
 			_layers.Sort ();
 			return newLayer;
 		}
-			
+
 
 		#endregion // PRIVATE_METHODS
 	}

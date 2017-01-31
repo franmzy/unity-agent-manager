@@ -4,7 +4,7 @@ using UnityEngine;
 
 namespace AgentManagerNamespace
 {
-	public class PerceptionAbstract
+	public class PerceptionAbstract :IPerceptionAction
 	{
 		#region PUBLIC_MEMBER_VARIABLES
 
@@ -15,7 +15,6 @@ namespace AgentManagerNamespace
 
 		#region PRIVATE_MEMBER_VARIABLES
 
-		private Agent _agent;
 		private GameObject _character;
 
 		#endregion // PRIVATE_MEMBER_VARIABLES
@@ -24,7 +23,6 @@ namespace AgentManagerNamespace
 
 		#region GETTERS_AND_SETTERS_METHODS
 
-		protected Agent Agent { get { return _agent; } }
 		protected GameObject Character { get { return _character; } }
 
 		#endregion // GETTERS_AND_SETTERS_METHODS
@@ -33,8 +31,7 @@ namespace AgentManagerNamespace
 
 		#region PUBLIC_METHODS
 
-		public void Initialize (Agent agent, GameObject character) {
-			_agent = agent;
+		public void Initialize (GameObject character) {
 			_character = character;
 		}
 

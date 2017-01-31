@@ -4,6 +4,7 @@ using System.Collections.Generic;
 //using UnityEditor;
 using System.Linq;
 using System.Reflection;
+using System;
 
 namespace AgentManagerNamespace
 {
@@ -29,10 +30,11 @@ namespace AgentManagerNamespace
 		// Activated state
 		private bool _activated = false;
 
+		private GameObject _character;
+
 		// VisualAction object
-		List<VisualActionAbstract> _visualActions = new List<VisualActionAbstract>();
-		List<LogicActionAbstract<VisualActionAbstract, PerceptionAbstract>> _logicActions = 
-			new List<LogicActionAbstract<VisualActionAbstract, PerceptionAbstract>>();
+		List<ILogicAction> _logicActions = new List<ILogicAction>();
+		List<IVisualAction> _visualActions = new List<IVisualAction>();
 
 		#endregion // PRIVATE_MEMBER_VARIABLES
 
@@ -70,9 +72,10 @@ namespace AgentManagerNamespace
 		 * 
 		 * @param agentName Id name for the agent.
 		 */
-		public State (string stateName, int bitmask = int.MaxValue)
+		public State (string stateName, GameObject character, int bitmask = int.MaxValue)
 		{
 			_name = stateName;
+			_character = character;
 			Bitmask = bitmask;
 		}
 
@@ -173,22 +176,21 @@ namespace AgentManagerNamespace
 		 * If the component is already created in the game object it returns it.
 		 * @return Return true if the action has been added.
 		 */
-		public bool AddAction <L, V, P>() 
-			where L:LogicActionAbstract<V, P>, new()
-			where V:VisualActionAbstract, new()
-			where P:PerceptionAbstract, new()
+		public bool AddAction<L> ()
+			where L:ILogicAction, new()
 		{
 			// Check if the component already exists
 			if (_logicActionTypes.Contains (typeof(L))) {
-				Debug.LogWarningFormat ("The State {0} already has the logic action {1}.", Name, (typeof(L)).Name);
+				Debug.LogWarningFormat ("The State {0} already has the logic action {1}.", Name, typeof(L).Name);
 				return false;
 			}
 
-			L logicAction = new L();
-			logicAction.Initialize (Layer.Agent, Layer.Agent.Character);
+			ILogicAction logicAction = new L();
+			logicAction.Initialize (Layer.Agent, _character);
+			_logicActions.Add (logicAction);
+			_logicActionTypes.Add (typeof(L));
 
-			_visualActions.Add (logicAction.VisualAction);
-			_logicActions.Add ((LogicActionAbstract<VisualActionAbstract, PerceptionAbstract>)(object)logicAction);
+			_visualActions.Add (logicAction.IVisualAction);
 			return true;
 		}
 
@@ -215,8 +217,8 @@ namespace AgentManagerNamespace
 				Layer.Agent.AnimationController.ActivateAnimation(_animationName);
 
 				// Active Logic Actions
-				foreach (var logicAction in _logicActions) {
-					logicAction.Activate ();
+				foreach (var loginAction in _logicActions) {
+					loginAction.Activate ();
 				}
 
 				// Active Visual Actions
