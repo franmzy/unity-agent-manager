@@ -47,6 +47,8 @@ namespace AgentManagerNamespace
 
 		// Architectures
 		private List<IArchitertureConfiguration> _architectures = new List<IArchitertureConfiguration>();
+		// Global Logic Controller
+		private LogicController _logicController;
 
 		#endregion // PRIVATE_MEMBER_VARIABLES
 
@@ -179,6 +181,20 @@ namespace AgentManagerNamespace
 			return (this.Name.Equals (agent.Name));
 		}
 
+
+		public void AddLogicController<L>()
+			where L:LogicController, new()
+		{
+			_logicController = new L ();
+		}
+
+		public L GetLogicController<L>()
+			where L:LogicController, new()
+		{
+			if (_logicController.GetType () != typeof(L))
+				return null;
+			return  (L)_logicController;
+		}
 
 		public void AddArchitecture<T> ()
 			where T:IArchitertureConfiguration, new()

@@ -122,7 +122,8 @@ namespace AgentManagerNamespace
 		 * @param character A GameObject with the model character and its Animator component.
 		 * @return A reference to the agent created in the system.
 		 */
-		public Agent CreateAgent (string agentName, GameObject character)
+		public Agent CreateAgent<L> (string agentName, GameObject character)
+			where L:LogicController, new()
 		{
 			// Check if agent already exists
 			if (_agents.Find (agent => agent.Name.Equals (agentName)) != null) {
@@ -134,6 +135,7 @@ namespace AgentManagerNamespace
 				return null;
 			}
 			Agent newAgent = new Agent (agentName, character);
+			newAgent.AddLogicController<L> ();
 			_agents.Add (newAgent);
 			return newAgent;
 		}
