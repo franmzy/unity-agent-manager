@@ -4,12 +4,17 @@ using UnityEngine;
 
 namespace AgentManagerNamespace
 {
-	public interface IVisualAction {
+	public interface IVisualAction
+	{
 		void Activate ();
 
 		void Deactivate ();
 
-		void Update ();
+		void CustomAwake ();
+
+		void CustomStart ();
+
+		void CustomUpdate ();
 
 		void Mask ();
 

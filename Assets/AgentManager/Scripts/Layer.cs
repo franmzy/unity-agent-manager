@@ -52,6 +52,10 @@ namespace AgentManagerNamespace
 			set { 
 				if (!_enabled && value) {
 					CurrentState = InitialState;
+                    foreach (State state in _states)
+                    {
+						state.Start ();
+                    }
 				}
 				if (_enabled && !value) {
 					CurrentState = null;
@@ -76,6 +80,9 @@ namespace AgentManagerNamespace
 				}
 			}
 		}
+
+		/// Lock a state until its ended.
+		public bool LockedState { get; set; }
 
 		#endregion // GETTERS_AND_SETTERS_METHODS
 
@@ -229,13 +236,13 @@ namespace AgentManagerNamespace
 			// Check if the states exist.
 			State originState = FindState (originStateName);
 			if (originState == null) {
-				Debug.LogWarningFormat ("The state {0} does not exist in layer.", originStateName, _id);
+				Debug.LogWarningFormat ("The state {0} does not exist in layer {1}.", originStateName, _id);
 				return null;
 			}
 
 			State targetState = FindState (targetStateName);
 			if (targetState == null) {
-				Debug.LogWarningFormat ("The state {0} does not exist in layer.", targetStateName, _id);
+				Debug.LogWarningFormat ("The state {0} does not exist in layer {1}.", targetStateName, _id);
 				return null;
 			}
 
@@ -252,7 +259,7 @@ namespace AgentManagerNamespace
 
 		public void SendStandarMessage (State state, object value, Agent sender = null)
 		{
-			state.SendStandardMsg(value, sender);
+			state.SendStandardMsg (value, sender);
 		}
 
 		public void Mask ()
@@ -261,16 +268,16 @@ namespace AgentManagerNamespace
 				foreach (State state in _states) {
 					state.Mask ();
 				}
-                Enabled = false;
-            }
-            _masked++;
+				Enabled = false;
+			}
+			_masked++;
 		}
 
 
 		public void Unmask ()
 		{
 			if (_masked == 1) {
-                Enabled = true;
+				Enabled = true;
 				foreach (State state in _states) {
 					state.Unmask ();
 				}
@@ -282,9 +289,11 @@ namespace AgentManagerNamespace
 		public void Update ()
 		{
 			if (Enabled) {
-				Transition activedTransition = CurrentState.GetActivedTransition ();
-				if (activedTransition != null) {
-					CurrentState = activedTransition.TargetState;
+				if (!LockedState) {
+					Transition activedTransition = CurrentState.GetActivedTransition ();
+					if (activedTransition != null) {
+						CurrentState = activedTransition.TargetState;
+					}
 				}
 				CurrentState.Update ();
 			}

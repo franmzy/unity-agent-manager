@@ -24,14 +24,10 @@ namespace AgentManagerNamespace
 		private GameObject _character;
 		// Possible animations in the Agent.
 		private Dictionary<string, int> _animationNames = new Dictionary<string, int> ();
-		// Last value of possible animations in the Agent.
-		private Dictionary<string, int> _lastAnimationNames = new Dictionary<string, int> ();
 		// Is this animation needed to be reset.
 		private Dictionary<string, bool> _resetAnimationNames = new Dictionary<string, bool> ();
 		// Possible components in the Agent.
 		private Dictionary<System.Type, int> _actionTypes = new Dictionary<System.Type, int> ();
-		// Last value of possible component types in the Agent.
-		private Dictionary<System.Type, int> _lastComponentTypes = new Dictionary<System.Type, int> ();
 
 		// Layers
 		private List<Layer> _layers = new List<Layer> ();
@@ -40,15 +36,18 @@ namespace AgentManagerNamespace
 		// First Update of Agent
 		private bool _firstTimeUpdate = true;
 		// Agent enabled
-		private bool _enabled = true;
+		private bool _enabled;
 
 		// Animation controller
 		private AnimationController _animationController;
 
 		// Architectures
 		private List<IArchitertureConfiguration> _architectures = new List<IArchitertureConfiguration>();
-		// Global Logic Controller
-		private LogicController _logicController;
+        // Architecture Perception
+        private List<IPerceptionAction> _architecturePerceptions = new List<IPerceptionAction>();
+        // Global Logic Controller
+        private LogicControllerAbstract _logicController;
+        
 
 		#endregion // PRIVATE_MEMBER_VARIABLES
 
@@ -61,7 +60,15 @@ namespace AgentManagerNamespace
 			get { return _enabled; }
 			set { 
 				if (!_enabled && value) {
-					_firstTimeUpdate = true;
+                    _logicController.Start();
+                    foreach (IPerceptionAction ip in _architecturePerceptions)
+                    {
+                        ip.CustomStart();
+                    }
+
+					foreach (var layer in _layers) {
+						layer.Enabled = true;
+					}
 				}
 				if (_enabled && !value) {
 					foreach (var layer in _layers) {
@@ -75,11 +82,12 @@ namespace AgentManagerNamespace
 		/// The Id name that identifies the Agent.
 		public string Name { get { return _name; } }
 
-		//! A reference to the character GameObjects that controls this Agent.
+        /// Agent that contains this state.
+        public AgentManager AgentManager { get; set; }
 
 
-		/// The Id name that identifies the Agent.
-		public AnimationController AnimationController { get { return _animationController; } }
+        /// The Id name that identifies the Agent.
+        public AnimationController AnimationController { get { return _animationController; } }
 
 		//! Possible animations in this Agent.
 		public Dictionary<string, int>  AnimationNames {
@@ -118,12 +126,7 @@ namespace AgentManagerNamespace
 		public void Update ()
 		{
 			if (Enabled) {
-				if (_firstTimeUpdate) {
-					foreach (var layer in _layers) {
-						layer.Enabled = true;
-					}
-					_firstTimeUpdate = false;
-				}
+				_logicController.Update ();
 				foreach (Layer layerI in _layers) {
 					layerI.Update ();
 				}
@@ -183,13 +186,15 @@ namespace AgentManagerNamespace
 
 
 		public void AddLogicController<L>()
-			where L:LogicController, new()
+			where L:LogicControllerAbstract, new()
 		{
 			_logicController = new L ();
+            _logicController.Initialize(this);
+			_logicController.Awake ();
 		}
 
 		public L GetLogicController<L>()
-			where L:LogicController, new()
+			where L:LogicControllerAbstract, new()
 		{
 			if (_logicController.GetType () != typeof(L))
 				return null;
@@ -200,8 +205,12 @@ namespace AgentManagerNamespace
 			where T:IArchitertureConfiguration, new()
 		{
 			IArchitertureConfiguration architecture = new T ();
-			architecture.Initialize (this); 
+			architecture.Initialize (this, _character); 
 			_architectures.Add (architecture);
+            IPerceptionAction perception = architecture.IPerceptionAction;
+            perception.Initialize(_character);
+            perception.CustomAwake();
+            _architecturePerceptions.Add(perception);
 		}
 
 		/** \brief Add an State to this Agent.
@@ -211,9 +220,9 @@ namespace AgentManagerNamespace
 		 * @param bitmask Hide lower layers when it bit is 0
 		 * @return A refence to de state created, null if it has not been created.
 		 */
-		public bool AddState (string stateName, int layerId = 0, int bitmask = int.MaxValue)
+		public bool AddState (string stateName, int layerId = 0, int bitmask = 0, float fixedDuration = 0)
 		{
-			State newState = new State (stateName, _character, bitmask);
+			State newState = new State (stateName, _character, bitmask, fixedDuration);
 			if (AddState (newState, layerId))
 				return true;
 			return false;
@@ -228,10 +237,10 @@ namespace AgentManagerNamespace
 		 * @param bitmask Hide lower layers when it bit is 0
 		 * @return A refence to de state created, null if it has not been created.
 		 */
-		public bool AddState<L> (string stateName, string animationName, int layerId = 0, int bitmask = int.MaxValue)
+		public bool AddState<L> (string stateName, string animationName, int layerId = 0, int bitmask = 0, float fixedDuration = 0)
 			where L:ILogicAction, new()
 		{
-			State newState = new State (stateName, _character, bitmask);
+			State newState = new State (stateName, _character, bitmask, fixedDuration);
 			if (AddState (newState, layerId)) {
 				if (!newState.AddAction<L> ()) {
 					RemoveState (newState);
@@ -251,10 +260,10 @@ namespace AgentManagerNamespace
 		 * @param bitmask Hide lower layers when it bit is 0
 		 * @return A refence to de state created, null if it has not been created.
 		 */
-		public bool AddState<L> (string stateName, int layerId = 0, int bitmask = int.MaxValue) 
+		public bool AddState<L> (string stateName, int layerId = 0, int bitmask = 0, float fixedDuration = 0) 
 			where L:ILogicAction, new()
 		{
-			State newState = new State (stateName, _character, bitmask);
+			State newState = new State (stateName, _character, bitmask, fixedDuration);
 			if (AddState (newState, layerId)) {
 				if (!newState.AddAction<L> ()) {
 					RemoveState (newState);
@@ -273,9 +282,9 @@ namespace AgentManagerNamespace
 		 * @param bitmask Hide lower layers when it bit is 0
 		 * @return A refence to de state created, null if it has not been created.
 		 */
-		public bool AddState (string stateName, string animationName, int layerId = 0, int bitmask = int.MaxValue)
+		public bool AddState (string stateName, string animationName, int layerId = 0, int bitmask = 0, float fixedDuration = 0)
 		{
-			State newState = new State (stateName, _character, bitmask);
+			State newState = new State (stateName, _character, bitmask, fixedDuration);
 			if (AddState (newState, layerId)) {
 				newState.SetAnimation (animationName);
 				return true;
@@ -293,7 +302,7 @@ namespace AgentManagerNamespace
 		 * @param priotity The prority to be actived.
 		 * @return A reference to the transition created.
 		 */
-		public bool AddTransition (string originStateName, string targetStateName, TransitionTrigger trigger, int priority = 0, int layerId = 0)
+		public bool AddTransition (string originStateName, string targetStateName, TransitionTrigger trigger, int layerId = 0, int priority = 0)
 		{
 			Layer layerAux = FindLayer (layerId);
 			if (layerAux == null) {

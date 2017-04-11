@@ -1,6 +1,7 @@
 using UnityEngine;
 using System.Collections;
 using System.Collections.Generic;
+
 //using UnityEditor;
 using System.Linq;
 using System.Reflection;
@@ -25,6 +26,7 @@ namespace AgentManagerNamespace
 		private List<Transition> _transitions = new List<Transition> ();
 		// Animations actived in this state
 		private string _animationName;
+		private bool _hasAnimation;
 		// Action actived in this state
 		private HashSet<System.Type> _logicActionTypes = new HashSet<System.Type> ();
 		// Activated state
@@ -33,8 +35,14 @@ namespace AgentManagerNamespace
 		private GameObject _character;
 
 		// VisualAction object
-		List<ILogicAction> _logicActions = new List<ILogicAction>();
-		List<IVisualAction> _visualActions = new List<IVisualAction>();
+		List<ILogicAction> _logicActions = new List<ILogicAction> ();
+		List<IVisualAction> _visualActions = new List<IVisualAction> ();
+
+		// Fix Duration
+		private float _fixedDuration;
+		private bool _hasFixedDuration;
+		private float _timeFixed;
+		private bool _lockState;
 
 		#endregion // PRIVATE_MEMBER_VARIABLES
 
@@ -72,10 +80,14 @@ namespace AgentManagerNamespace
 		 * 
 		 * @param agentName Id name for the agent.
 		 */
-		public State (string stateName, GameObject character, int bitmask = int.MaxValue)
+		public State (string stateName, GameObject character, int bitmask = 0, float fixedDuration = 0)
 		{
 			_name = stateName;
 			_character = character;
+			if (fixedDuration > 0) {
+				_hasFixedDuration = true;
+				_fixedDuration = fixedDuration;
+			}
 			Bitmask = bitmask;
 		}
 
@@ -167,6 +179,7 @@ namespace AgentManagerNamespace
 		public void SetAnimation (string animationName)
 		{
 			_animationName = animationName;
+			_hasAnimation = true;
 		}
 
 
@@ -185,12 +198,18 @@ namespace AgentManagerNamespace
 				return false;
 			}
 
-			ILogicAction logicAction = new L();
-			logicAction.Initialize (Layer.Agent, _character);
+			ILogicAction logicAction = new L ();
+			logicAction.Initialize (Layer.Agent, this, _character);
 			_logicActions.Add (logicAction);
 			_logicActionTypes.Add (typeof(L));
 
 			_visualActions.Add (logicAction.IVisualAction);
+
+			// Calling start Events -> Llamamos aqui a awake, y start se debería llamar cuando se habilite el agent manager
+			logicAction.Awake ();
+			logicAction.IVisualAction.CustomAwake ();
+			logicAction.IPerceptionAction.CustomAwake ();
+
 			return true;
 		}
 
@@ -214,7 +233,8 @@ namespace AgentManagerNamespace
 		{
 			if (!_activated) {
 				// Active animations
-				Layer.Agent.AnimationController.ActivateAnimation(_animationName);
+				if (_hasAnimation)
+					Layer.Agent.AnimationController.ActivateAnimation (_animationName);
 
 				// Active Logic Actions
 				foreach (var loginAction in _logicActions) {
@@ -229,7 +249,7 @@ namespace AgentManagerNamespace
 				// Control Mask
 				int layerId = Layer.Id - 1;
 				for (int i = 1 << Layer.Id - 1; i > 0; i >>= 1) {
-					if ((i & ~Bitmask) > 0) {
+					if ((i & Bitmask) > 0) {
 						Layer auxLayer = Layer.Agent.FindLayer (layerId);
 						if (auxLayer != null)
 							auxLayer.Mask ();
@@ -238,6 +258,11 @@ namespace AgentManagerNamespace
 				}
 
 				_activated = true;
+				if (_hasFixedDuration) {
+					_lockState = true;
+					_timeFixed = Time.time;
+					Layer.LockedState = true;
+				}
 				//Debug.LogFormat ("Agent {0} actived state {1} in layer {2}", Layer.Agent.Name, Name, Layer.Id);
 			}
 		}
@@ -253,7 +278,8 @@ namespace AgentManagerNamespace
 		{
 			if (_activated) {
 				// Deactive animations
-				Layer.Agent.AnimationController.DeactivateAnimation(_animationName);
+				if (_hasAnimation)
+					Layer.Agent.AnimationController.DeactivateAnimation (_animationName);
 
 				// Deactive Logic Actions
 				foreach (var logicAction in _logicActions) {
@@ -269,7 +295,7 @@ namespace AgentManagerNamespace
 				// Control Mask
 				int layerId = Layer.Id - 1;
 				for (int i = 1 << Layer.Id - 1; i > 0; i >>= 1) {
-					if ((i & ~Bitmask) > 0) {
+					if ((i & Bitmask) > 0) {
 						Layer auxLayer = Layer.Agent.FindLayer (layerId);
 						if (auxLayer != null)
 							auxLayer.Unmask ();
@@ -283,55 +309,96 @@ namespace AgentManagerNamespace
 		}
 
 
-		public void SendInterruptingMsg(object value, Agent sender = null) {
+		public void EndAction ()
+		{
+			if (_hasFixedDuration && _lockState) {
+				_lockState = false;
+				Layer.LockedState = false;
+			}
+		}
+
+
+		public void SendInterruptingMsg (object value, Agent sender = null)
+		{
 			// Send interrupting messages to logic actions
-			foreach (var logicAction in _logicActions) {
+			foreach (ILogicAction logicAction in _logicActions) {
 				logicAction.ReceiveInterruptingMessage (value, sender);
 			}
 		}
 
-		public void SendStandardMsg(object value, Agent sender = null) {
+		public void SendStandardMsg (object value, Agent sender = null)
+		{
 			// Send interrupting messages to logic actions
-			foreach (var logicAction in _logicActions) {
+			foreach (ILogicAction logicAction in _logicActions) {
 				logicAction.ReceiveStandarMessage (value, sender);
 			}
 		}
 
-		public void Mask() {
+		public void Mask ()
+		{
 			// Deactive Logic Actions
-			foreach (var logicAction in _logicActions) {
+			foreach (ILogicAction logicAction in _logicActions) {
 				logicAction.Mask ();
 			}
 
 			// Deactive Visual Actions
-			foreach (VisualActionAbstract visualAction in _visualActions) {
+			foreach (IVisualAction visualAction in _visualActions) {
 				visualAction.Mask ();
 			}
 		}
 
-		public void Unmask() {
+		public void Unmask ()
+		{
 			// Deactive Logic Actions
-			foreach (var logicAction in _logicActions) {
+			foreach (ILogicAction logicAction in _logicActions) {
 				logicAction.Unmask ();
 			}
 
 			// Deactive Visual Actions
-			foreach (VisualActionAbstract visualAction in _visualActions) {
+			foreach (IVisualAction visualAction in _visualActions) {
 				visualAction.Unmask ();
 			}
 		}
 
-		public void Update() {
+		public void Update ()
+		{
+			// Check for another iteration of fixed duration
+			if (_hasFixedDuration && _lockState && Time.time - _timeFixed > _fixedDuration) {
+				_lockState = false;
+				Layer.LockedState = false;
+			}
+			else if (_hasFixedDuration && !_lockState) {
+				_lockState = true;
+				_timeFixed = Time.time;
+				Layer.LockedState = true;
+			}
+
 			// Deactive Logic Actions
-			foreach (var logicAction in _logicActions) {
-				logicAction.Update ();
+			foreach (ILogicAction il in _logicActions) {
+				il.Update ();
 			}
 
 			// Deactive Visual Actions
-			foreach (VisualActionAbstract visualAction in _visualActions) {
-				visualAction.Update ();
+			foreach (IVisualAction visualAction in _visualActions) {
+				visualAction.CustomUpdate ();
 			}
 		}
+
+		public void Awake ()
+		{
+		}
+
+		public void Start ()
+		{
+			foreach (ILogicAction il in _logicActions) {
+				il.Start ();
+				il.IPerceptionAction.CustomStart ();
+			}
+			foreach (IVisualAction iv in _visualActions) {
+				iv.CustomStart ();
+			}
+		}
+
 		#endregion // PUBLIC_METHODS
 
 

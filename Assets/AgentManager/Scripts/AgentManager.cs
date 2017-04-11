@@ -8,7 +8,7 @@ namespace AgentManagerNamespace
 	 * 
 	 * This class manages the actived agents at that current moment.
 	 */
-	public class AgentManager : MonoBehaviour
+	public class AgentManager
 	{
 		#region PUBLIC_MEMBER_VARIABLES
 
@@ -30,7 +30,7 @@ namespace AgentManagerNamespace
 		#region PRIVATE_MEMBER_VARIABLES
 
 		// Current list of agents
-		private List<Agent> _agents;
+		private List<Agent> _agents = new List<Agent>();
 
 		// Manager enabled
 		private bool _managerEnabled;
@@ -65,25 +65,11 @@ namespace AgentManagerNamespace
 
 		#region UNTIY_MONOBEHAVIOUR_METHODS
 
-		void Awake ()
+		public AgentManager ()
 		{
-			// Check if instance already exists
-			if (instance == null)
-				// if not, set instance to this
-				instance = this;
-
-			// If instance already exists and it's not this:
-			else if (instance != this)
-				// Then destroy this. This enforces our singleton pattern, meaning there can only ever be one instance of a GameManager.
-				Destroy (gameObject);    
-
-			// Sets this to not be destroyed when reloading scene
-			DontDestroyOnLoad (gameObject);
-
-			_agents = new List<Agent> ();
 		}
 
-		void Update ()
+		public void Update ()
 		{
 			if (ManagerEnabled) {
 				// Call each agent update
@@ -105,7 +91,7 @@ namespace AgentManagerNamespace
 		 * @param agentName Name of the agent to search
 		 * @return The agent found with the name passed or null if it does not exist.
 		 */
-		public Agent GetAgent (string agentName)
+		public Agent FindAgent (string agentName)
 		{
 			foreach (Agent agent in _agents) {
 				if (agent.Name.Equals (agentName)) {
@@ -123,7 +109,7 @@ namespace AgentManagerNamespace
 		 * @return A reference to the agent created in the system.
 		 */
 		public Agent CreateAgent<L> (string agentName, GameObject character)
-			where L:LogicController, new()
+			where L:LogicControllerAbstract, new()
 		{
 			// Check if agent already exists
 			if (_agents.Find (agent => agent.Name.Equals (agentName)) != null) {
@@ -136,6 +122,7 @@ namespace AgentManagerNamespace
 			}
 			Agent newAgent = new Agent (agentName, character);
 			newAgent.AddLogicController<L> ();
+            newAgent.AgentManager = this;
 			_agents.Add (newAgent);
 			return newAgent;
 		}
@@ -168,7 +155,7 @@ namespace AgentManagerNamespace
 		 * @return True if the message has been successfully sent
 		 */
 		public bool SendMsg(string agentName, string stateName, object value, Agent sender=null, MsgType msgType = MsgType.STARDAR_MSG) {
-			Agent agent = GetAgent (agentName);
+			Agent agent = FindAgent (agentName);
 			if (agent == null) {
 				Debug.LogWarningFormat ("The agent {0} does not exists", agentName);
 				return false;
@@ -187,7 +174,7 @@ namespace AgentManagerNamespace
 		 * @return True if the message has been successfully sent
 		 */
 		public bool SendMsg(string agentName, string stateName, int layerId, object value, Agent sender=null, MsgType msgType = MsgType.STARDAR_MSG) {
-			Agent agent = GetAgent (agentName);
+			Agent agent = FindAgent (agentName);
 			if (agent == null) {
 				Debug.LogWarningFormat ("The agent {0} does not exists", agentName);
 				return false;

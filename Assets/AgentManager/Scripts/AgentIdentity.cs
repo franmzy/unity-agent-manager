@@ -5,7 +5,7 @@ using UnityEngine;
 namespace AgentManagerNamespace
 {
 	public class AgentIdentity : MonoBehaviour {
-		private string _id;
+		public string _id;
 		private bool _initialized;
 
 		public string Id { get { return _id; } }

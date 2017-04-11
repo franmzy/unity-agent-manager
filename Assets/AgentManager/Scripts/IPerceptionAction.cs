@@ -4,7 +4,12 @@ using UnityEngine;
 
 namespace AgentManagerNamespace
 {
-	public interface IPerceptionAction {
-		
+	public interface IPerceptionAction
+	{
+		void Initialize (GameObject character);
+
+		void CustomAwake ();
+
+		void CustomStart ();
 	}
 }

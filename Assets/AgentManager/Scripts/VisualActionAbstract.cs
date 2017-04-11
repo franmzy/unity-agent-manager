@@ -4,7 +4,8 @@ using UnityEngine;
 
 namespace AgentManagerNamespace
 {
-	public class VisualActionAbstract : IVisualAction{
+	public class VisualActionAbstract :MonoBehaviour, IVisualAction
+	{
 
 		#region PUBLIC_MEMBER_VARIABLES
 
@@ -34,37 +35,53 @@ namespace AgentManagerNamespace
 
 		#region PUBLIC_METHODS
 
-		public void Initialize(GameObject character) {
+		public void Initialize (GameObject character)
+		{
 			_character = character;
 		}
 
-		public void Activate() {
+		public void Activate ()
+		{
 			// Call the children event
 			_activated = true;
-			if(_masked == 0)
-				OnActivate();
+			if (_masked == 0)
+				OnActivate ();
 		}
 
-		public void Deactivate() {
+		public void Deactivate ()
+		{
 			// Call the children event
 			_activated = false;
-			if(_masked == 0)
-				OnDeactivate();
+			if (_masked == 0)
+				OnDeactivate ();
 		}
 
-		public void Update() {
+		public void CustomAwake ()
+		{
+			OnAwake ();
+		}
+
+		public void CustomStart ()
+		{
+			OnStart ();
+		}
+
+		public void CustomUpdate ()
+		{
 			if (_masked == 0)
 				OnUpdate ();
 		}
 
-		public void Mask() {
+		public void Mask ()
+		{
 			if (++_masked == 1) {
 				if (_activated)
 					OnDeactivate ();
 			}
 		}
 
-		public void Unmask() {
+		public void Unmask ()
+		{
 			if (--_masked == 0) {
 				if (_activated)
 					OnActivate ();
@@ -79,11 +96,25 @@ namespace AgentManagerNamespace
 
 		#region PRIVATE_METHODS
 
-		protected virtual void OnActivate() {}
+		protected virtual void OnActivate ()
+		{
+		}
 
-		protected virtual void OnDeactivate() {}
+		protected virtual void OnDeactivate ()
+		{
+		}
 
-		protected virtual void OnUpdate() {}
+		protected virtual void OnUpdate ()
+		{
+		}
+
+		protected virtual void OnAwake ()
+		{
+		}
+
+		protected virtual void OnStart ()
+		{
+		}
 
 		#endregion // PRIVATE_METHODS
 	}
